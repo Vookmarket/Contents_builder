@@ -135,9 +135,18 @@ class DeepResearchService {
     });
     console.log(`  -> Collected ${newsArticles.length} news articles.`);
 
-    // 3. プロジェクトシートへの保存
-    console.log('  -> Step 3: Saving to project sheet...');
+    // 3. 信頼性評価
+    console.log('  -> Step 3: Evaluating reliability...');
+    const evaluator = new ReliabilityEvaluator();
     const allArticles = [...primarySources, ...newsArticles];
+    allArticles.forEach(article => {
+      article.reliability_score = evaluator.evaluate(article);
+      Utilities.sleep(500); // Gemini API レート制限対策
+    });
+    console.log(`  -> Reliability evaluation completed.`);
+
+    // 4. プロジェクトシートへの保存
+    console.log('  -> Step 4: Saving to project sheet...');
     this.saveToProjectSheet(topicId, allArticles);
     
     console.log(`  -> Deep Research Completed (${allArticles.length} sources total).`);
