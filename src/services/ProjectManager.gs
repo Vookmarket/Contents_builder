@@ -44,9 +44,19 @@ class ProjectManager {
 
     // 3. シート初期化
     this.initSheet(ss, '00_Overview', ['Property', 'Value']);
-    this.initSheet(ss, '01_Research', ['source_url', 'title', 'published_at', 'summary', 'key_claims', 'reliability', 'notes']);
+    this.initSheet(ss, '01_Research', [
+      'source_url', 'title', 'published_at', 'summary', 'source_type', 
+      'reliability_score', 'bias_indicator', 'fact_check_status', 
+      'stakeholder', 'key_claims', 'notes'
+    ]);
     this.initSheet(ss, '02_Analysis', ['category', 'item', 'content', 'sources']);
     this.initSheet(ss, '03_Drafts', ['type', 'title_proposal', 'content_body', 'status']);
+    this.initSheet(ss, '04_FactCheck', [
+      'claim_text', 'claim_value', 'source_value', 'match_status', 'source_url'
+    ]);
+    this.initSheet(ss, '05_Timeline', [
+      'date', 'event', 'source_url', 'category'
+    ]);
 
     // デフォルトの「シート1」を削除
     const defaultSheet = ss.getSheetByName('シート1');
