@@ -63,12 +63,36 @@ function runContentGenerationCycle() {
 }
 
 /**
+ * 新規収集テーマの追加（自動Source生成）
+ */
+function addCollectionTheme() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.prompt(
+    '新規テーマの追加',
+    '収集したいテーマを入力してください（例: 動物愛護法の改正）',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (response.getSelectedButton() == ui.Button.OK) {
+    const theme = response.getResponseText();
+    if (theme) {
+      ui.alert(`テーマ「${theme}」に関連する収集先を検索・登録します...`);
+      const service = new SourceDiscoveryService();
+      const count = service.discoverAndRegister(theme);
+      ui.alert(`${count} 件の収集先を登録しました。`);
+    }
+  }
+}
+
+/**
  * メニュー作成 (Spreadsheet Open時)
  */
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Contents Builder')
     .addItem('0. 初期セットアップ', 'runSetup')
+    .addSeparator()
+    .addItem('➕ 収集テーマの追加', 'addCollectionTheme')
     .addSeparator()
     .addItem('1. 収集を実行', 'runIntakeCycle')
     .addItem('2. スクリーニング実行', 'runScreeningCycle')
