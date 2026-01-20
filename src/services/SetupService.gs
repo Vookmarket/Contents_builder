@@ -25,7 +25,7 @@ class SetupService {
       screening: ['item_id', 'animal_score', 'policy_score', 'urgency', 'japan_relevance', 'misinformation_risk', 'tags', 'summary_30s', 'key_points', 'model_meta'],
       evidence: ['topic_id', 'claim_id', 'related_item_id', 'claim_text', 'evidence_url', 'evidence_type', 'primary_flag', 'confidence', 'evidence_notes'],
       topic: ['topic_id', 'created_at', 'title_working', 'angle', 'target_media', 'priority', 'status', 'lead_item_ids'],
-      outputs: ['topic_id', 'drive_folder_url', 'md_evidence_url', 'md_short_url', 'md_long_url', 'md_note_url', 'md_genspark_prompt_url', 'generated_at']
+      outputs: ['topic_id', 'project_sheet_url', 'drive_folder_url', 'md_evidence_url', 'md_short_url', 'md_long_url', 'md_note_url', 'md_genspark_prompt_url', 'generated_at']
     };
 
     // 2. ヘッダー設定
