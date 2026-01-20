@@ -18,12 +18,32 @@ function runScreeningCycle() {
 }
 
 /**
+ * トピック生成処理（Promotedアイテムから）
+ */
+function runTopicGenerationCycle() {
+  console.log('Starting Topic Generation Cycle...');
+  const topicService = new TopicService();
+  topicService.generateTopicsFromPromotedItems();
+}
+
+/**
+ * コンテンツ生成処理（トピックから台本生成）
+ */
+function runContentGenerationCycle() {
+  console.log('Starting Content Generation Cycle...');
+  const contentService = new ContentService();
+  contentService.generateContentsForPendingTopics();
+}
+
+/**
  * メニュー作成 (Spreadsheet Open時)
  */
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Contents Builder')
-    .addItem('今すぐ収集を実行', 'runIntakeCycle')
-    .addItem('スクリーニング実行', 'runScreeningCycle')
+    .addItem('1. 収集を実行', 'runIntakeCycle')
+    .addItem('2. スクリーニング実行', 'runScreeningCycle')
+    .addItem('3. テーマ案生成', 'runTopicGenerationCycle')
+    .addItem('4. コンテンツ生成 (Shorts)', 'runContentGenerationCycle')
     .addToUi();
 }
