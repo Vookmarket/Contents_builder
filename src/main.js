@@ -1,6 +1,3 @@
-import { Config } from './config/Config';
-import { GeminiService } from './services/GeminiService';
-
 /**
  * 収集トリガー（例: 07:30, 12:30, 19:30）
  */
@@ -28,11 +25,3 @@ function onOpen() {
     .addItem('スクリーニング実行', 'runScreeningCycle')
     .addToUi();
 }
-
-// グローバルスコープに公開するために必要（clasp/GASの仕様）
-// @ts-ignore
-global.runIntakeCycle = runIntakeCycle;
-// @ts-ignore
-global.runScreeningCycle = runScreeningCycle;
-// @ts-ignore
-global.onOpen = onOpen;

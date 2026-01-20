@@ -1,11 +1,8 @@
-import { Config } from '../config/Config';
-
-export class GeminiService {
-  private apiKey: string;
-  private baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
-
+class GeminiService {
   constructor() {
     this.apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY') || '';
+    this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+    
     if (!this.apiKey) {
       console.warn('GEMINI_API_KEY is not set in Script Properties.');
     }
@@ -13,20 +10,16 @@ export class GeminiService {
 
   /**
    * Gemini APIを呼び出す汎用メソッド
-   * @param model モデル名
-   * @param systemInstruction システムプロンプト
-   * @param prompt ユーザープロンプト
-   * @param jsonMode JSONモードを有効にするか
+   * @param {string} model モデル名
+   * @param {string} systemInstruction システムプロンプト
+   * @param {string} prompt ユーザープロンプト
+   * @param {boolean} jsonMode JSONモードを有効にするか
+   * @returns {string} 生成されたテキスト
    */
-  public generateContent(
-    model: string,
-    systemInstruction: string,
-    prompt: string,
-    jsonMode: boolean = false
-  ): string {
+  generateContent(model, systemInstruction, prompt, jsonMode = false) {
     const url = `${this.baseUrl}/${model}:generateContent?key=${this.apiKey}`;
     
-    const payload: any = {
+    const payload = {
       contents: [
         {
           role: 'user',
@@ -46,7 +39,7 @@ export class GeminiService {
       payload.generationConfig.responseMimeType = 'application/json';
     }
 
-    const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
+    const options = {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify(payload),
@@ -78,15 +71,16 @@ export class GeminiService {
 
   /**
    * JSONオブジェクトとしてパースして返すラッパー
+   * @template T
+   * @param {string} model
+   * @param {string} systemInstruction
+   * @param {string} prompt
+   * @returns {T}
    */
-  public generateJson<T>(
-    model: string,
-    systemInstruction: string,
-    prompt: string
-  ): T {
+  generateJson(model, systemInstruction, prompt) {
     const jsonString = this.generateContent(model, systemInstruction, prompt, true);
     try {
-        return JSON.parse(jsonString) as T;
+        return JSON.parse(jsonString);
     } catch (e) {
         console.error('JSON Parse Error:', jsonString);
         throw new Error('Failed to parse Gemini response as JSON');

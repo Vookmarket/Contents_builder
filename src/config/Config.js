@@ -1,4 +1,8 @@
-export const Config = {
+/**
+ * アプリケーション設定
+ * @type {Object}
+ */
+const Config = {
   GEMINI: {
     MODEL_SCREENING: 'gemini-3-flash',
     MODEL_GENERATION: 'gemini-3-pro',
