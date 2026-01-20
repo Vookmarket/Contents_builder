@@ -138,6 +138,32 @@ class FetchService {
   }
 
   /**
+   * 検索クエリによる一時的なRSS収集
+   * @param {string} query
+   * @returns {Object[]}
+   */
+  fetchByQuery(query) {
+    // Google News RSS URL生成
+    const encodedKw = encodeURIComponent(query);
+    const url = `https://news.google.com/rss/search?q=${encodedKw}+when:1y&hl=ja&gl=JP&ceid=JP:ja`; // 過去1年
+    
+    const tempSource = {
+      source_id: 'temp',
+      name: `Search: ${query}`,
+      type: 'RSS',
+      url: url,
+      enabled: 'TRUE'
+    };
+
+    try {
+      return this.fetchRss(tempSource);
+    } catch (e) {
+      console.warn(`Search failed for query "${query}": ${e.message}`);
+      return [];
+    }
+  }
+
+  /**
    * HTMLタグ除去（簡易版）
    * @param {string} html
    * @returns {string}

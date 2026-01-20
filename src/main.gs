@@ -27,12 +27,12 @@ function runScreeningCycle() {
 }
 
 /**
- * 深掘り調査（一次ソース収集）
+ * 深掘り調査（Advanced Deep Research）
  */
 function runEvidenceCollectionCycle() {
-  console.log('Starting Evidence Collection Cycle...');
-  const evidenceService = new EvidenceService();
-  evidenceService.processPromotedItems(5);
+  console.log('Starting Deep Research Cycle...');
+  const deepResearchService = new DeepResearchService();
+  deepResearchService.processPromotedItems(5);
 }
 
 /**
