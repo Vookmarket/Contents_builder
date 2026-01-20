@@ -1,4 +1,13 @@
 /**
+ * 初期セットアップ（シート作成・データ投入）
+ */
+function runSetup() {
+  const setupService = new SetupService();
+  setupService.setupAll();
+  SpreadsheetApp.getUi().alert('Setup Completed. Please refresh the spreadsheet.');
+}
+
+/**
  * 収集トリガー（例: 07:30, 12:30, 19:30）
  */
 function runIntakeCycle() {
@@ -50,6 +59,8 @@ function runContentGenerationCycle() {
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Contents Builder')
+    .addItem('0. 初期セットアップ', 'runSetup')
+    .addSeparator()
     .addItem('1. 収集を実行', 'runIntakeCycle')
     .addItem('2. スクリーニング実行', 'runScreeningCycle')
     .addItem('3. 一次ソース調査', 'runEvidenceCollectionCycle')
