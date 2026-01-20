@@ -4,6 +4,7 @@ class DeepResearchService {
     this.fetchService = new FetchService();
     this.geminiService = new GeminiService();
     this.projectManager = new ProjectManager();
+    this.primarySourceService = new PrimarySourceService();
   }
 
   /**
@@ -101,31 +102,45 @@ class DeepResearchService {
   }
 
   /**
-   * 1つのアイテムに対するリサーチ実行
+   * 1つのアイテムに対するリサーチ実行（拡張版）
    * @param {Object} item
    * @param {string} topicId
    */
   conductResearch(item, topicId) {
-    // 1. 調査計画の策定
-    console.log('  -> Planning research...');
-    const plan = this.planResearch(item);
-    console.log(`  -> Generated ${plan.queries.length} search queries.`);
-
-    // 2. 追加情報の収集
-    console.log('  -> Collecting additional info...');
-    let relatedArticles = [];
-    plan.queries.forEach(query => {
-      const articles = this.fetchService.fetchByQuery(query);
-      relatedArticles = relatedArticles.concat(articles.slice(0, 3));
+    // 1. 一次ソースの収集
+    console.log('  -> Step 1: Collecting primary sources...');
+    const primaryQueries = this.primarySourceService.generatePrimaryQueries(item);
+    const primarySources = [];
+    primaryQueries.forEach(query => {
+      const sources = this.primarySourceService.collect(query);
+      primarySources.push(...sources);
       Utilities.sleep(1000);
     });
-    console.log(`  -> Collected ${relatedArticles.length} related articles.`);
+    console.log(`  -> Collected ${primarySources.length} primary sources.`);
+
+    // 2. 二次ソース（ニュース記事）の収集
+    console.log('  -> Step 2: Planning research for news articles...');
+    const plan = this.planResearch(item);
+    console.log(`  -> Generated ${plan.queries.length} search queries.`);
+    
+    const newsArticles = [];
+    plan.queries.forEach(query => {
+      const articles = this.fetchService.fetchByQuery(query, 3);
+      articles.forEach(a => {
+        a.source_type = 'news';
+        a.bias_indicator = 'unknown';
+      });
+      newsArticles.push(...articles);
+      Utilities.sleep(1000);
+    });
+    console.log(`  -> Collected ${newsArticles.length} news articles.`);
 
     // 3. プロジェクトシートへの保存
-    console.log('  -> Saving to project sheet...');
-    this.saveToProjectSheet(topicId, relatedArticles);
+    console.log('  -> Step 3: Saving to project sheet...');
+    const allArticles = [...primarySources, ...newsArticles];
+    this.saveToProjectSheet(topicId, allArticles);
     
-    console.log(`  -> Deep Research Completed.`);
+    console.log(`  -> Deep Research Completed (${allArticles.length} sources total).`);
   }
 
   /**
@@ -161,7 +176,7 @@ JSON Schema:
   }
 
   /**
-   * プロジェクトシートへの保存
+   * プロジェクトシートへの保存（拡張版）
    * @param {string} topicId
    * @param {Object[]} articles
    */
@@ -172,13 +187,19 @@ JSON Schema:
       return;
     }
 
+    // 列構造: source_url, title, published_at, summary, source_type, 
+    //         reliability_score, bias_indicator, fact_check_status, stakeholder, key_claims, notes
     const rows = articles.map(a => [
       a.url,
       a.title,
       a.published_at || new Date().toISOString(),
       a.snippet,
+      a.source_type || 'news',
+      a.reliability_score || 0,
+      a.bias_indicator || 'unknown',
+      a.fact_check_status || 'unverified',
+      a.stakeholder || '',
       '', // key_claims (未抽出)
-      '', // reliability
       'Auto-collected'
     ]);
 

@@ -140,12 +140,14 @@ class FetchService {
   /**
    * 検索クエリによる一時的なRSS収集
    * @param {string} query
+   * @param {number} limit 取得件数上限（デフォルト: 10）
+   * @param {string} timeRange 期間指定（"1d", "7d", "1m", "1y" など、デフォルト: "1y"）
    * @returns {Object[]}
    */
-  fetchByQuery(query) {
+  fetchByQuery(query, limit = 10, timeRange = '1y') {
     // Google News RSS URL生成
     const encodedKw = encodeURIComponent(query);
-    const url = `https://news.google.com/rss/search?q=${encodedKw}+when:1y&hl=ja&gl=JP&ceid=JP:ja`; // 過去1年
+    const url = `https://news.google.com/rss/search?q=${encodedKw}+when:${timeRange}&hl=ja&gl=JP&ceid=JP:ja`;
     
     const tempSource = {
       source_id: 'temp',
@@ -156,7 +158,8 @@ class FetchService {
     };
 
     try {
-      return this.fetchRss(tempSource);
+      const results = this.fetchRss(tempSource);
+      return results.slice(0, limit); // 件数制限
     } catch (e) {
       console.warn(`Search failed for query "${query}": ${e.message}`);
       return [];
