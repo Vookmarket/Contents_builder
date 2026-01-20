@@ -36,24 +36,26 @@ function runEvidenceCollectionCycle() {
 }
 
 /**
- * トリガーから呼ばれる単一トピックの深掘り調査
+ * トリガーから呼ばれる深掘り調査（並列実行・排他制御付き）
  * @param {Object} e トリガーイベント（未使用）
  */
 function runDeepResearchForTopic(e) {
-  // PropertiesServiceから引数を取得する方式だが、
-  // 今回は簡易的にtopicIdをグローバル変数経由で渡すのは難しいため、
-  // IntakeQueueの全promotedアイテムから順次処理する形に変更
-  // （または、トリガー作成時にメタデータを使う）
+  console.log('[Trigger] Deep Research batch started.');
   
-  // 簡易実装: 全てのpromoted itemを処理
-  const service = new DeepResearchService();
-  const intakeRepo = new IntakeQueueRepo();
-  const targets = intakeRepo.getAll().filter(item => item.status === 'promoted');
+  // Properties から登録されている全 topicId を取得
+  const pendingTopics = TriggerManager.getPendingTopics();
+  console.log(`[Trigger] Found ${pendingTopics.length} pending topics.`);
   
-  if (targets.length > 0) {
-    const item = targets[0]; // 先頭の1件を処理
-    DeepResearchService.runForTopic(item.item_id);
-  }
+  // 各トピックを処理（排他制御により重複実行は防止される）
+  pendingTopics.forEach(topicId => {
+    try {
+      DeepResearchService.runForTopic(topicId);
+    } catch (e) {
+      console.error(`[Trigger] Failed to process ${topicId}:`, e);
+    }
+  });
+  
+  console.log('[Trigger] Deep Research batch completed.');
 }
 
 /**

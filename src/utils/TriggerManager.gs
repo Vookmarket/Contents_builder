@@ -3,17 +3,17 @@
  */
 class TriggerManager {
   /**
-   * 時限トリガーを作成
+   * 時限トリガーを作成（topicId 専用）
    * @param {string} functionName 実行する関数名
    * @param {number} delayMinutes 何分後に実行するか
-   * @param {Object} args 引数（PropertiesServiceに保存）
+   * @param {string} topicId 処理対象のtopic_id
    */
-  static createDelayedTrigger(functionName, delayMinutes, args = {}) {
+  static createDelayedTriggerForTopic(functionName, delayMinutes, topicId) {
     const triggerTime = new Date(Date.now() + delayMinutes * 60 * 1000);
     
-    // 引数をPropertiesServiceに一時保存
-    const triggerKey = `trigger_${Utilities.getUuid()}`;
-    PropertiesService.getScriptProperties().setProperty(triggerKey, JSON.stringify(args));
+    // topicId を key にして Properties に保存
+    const triggerKey = `trigger_topic_${topicId}`;
+    PropertiesService.getScriptProperties().setProperty(triggerKey, topicId);
     
     // トリガー作成
     ScriptApp.newTrigger(functionName)
@@ -21,8 +21,31 @@ class TriggerManager {
       .at(triggerTime)
       .create();
     
-    console.log(`Trigger created: ${functionName} at ${triggerTime.toISOString()}`);
+    console.log(`Trigger created: ${functionName} for ${topicId} at ${triggerTime.toISOString()}`);
     return triggerKey;
+  }
+
+  /**
+   * トリガー実行時に全てのpending topic を取得
+   * @returns {string[]} topic_id のリスト
+   */
+  static getPendingTopics() {
+    const properties = PropertiesService.getScriptProperties();
+    const allKeys = properties.getKeys();
+    const topicIds = allKeys
+      .filter(key => key.startsWith('trigger_topic_'))
+      .map(key => properties.getProperty(key));
+    
+    return topicIds;
+  }
+
+  /**
+   * 処理完了後に Properties をクリーンアップ
+   * @param {string} topicId
+   */
+  static cleanupTriggerData(topicId) {
+    const triggerKey = `trigger_topic_${topicId}`;
+    PropertiesService.getScriptProperties().deleteProperty(triggerKey);
   }
 
   /**

@@ -65,6 +65,7 @@ class ProjectManager {
     outputsRepo.add({
       topic_id: topic.topic_id,
       project_sheet_url: url,
+      research_status: 'pending',
       generated_at: new Date().toISOString()
     });
 

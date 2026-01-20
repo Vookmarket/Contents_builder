@@ -32,9 +32,7 @@ class DeepResearchService {
         
         // トリガー登録（各アイテムを少しずつずらす）
         const delay = delayMinutes + (index * 0.5); // 30秒ずつずらす
-        TriggerManager.createDelayedTrigger('runDeepResearchForTopic', delay, {
-          topicId: pseudoTopic.topic_id
-        });
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', delay, pseudoTopic.topic_id);
         
         console.log(`  -> Scheduled in ${delay} minutes.`);
         
@@ -47,25 +45,58 @@ class DeepResearchService {
   }
 
   /**
-   * 単一トピックに対するDeep Researchを実行（トリガーから呼ばれる）
+   * 単一トピックに対するDeep Researchを実行（トリガーから呼ばれる・排他制御付き）
    * @param {string} topicId
    */
   static runForTopic(topicId) {
-    console.log(`[Triggered] Starting Deep Research for topic: ${topicId}`);
-    const service = new DeepResearchService();
-    const intakeRepo = new IntakeQueueRepo();
-    
-    const item = intakeRepo.getAll().find(i => i.item_id === topicId);
-    if (!item) {
-      console.error(`Item not found: ${topicId}`);
-      return;
-    }
+    const lock = LockService.getScriptLock();
+    const outputsRepo = new OutputsRepo();
     
     try {
+      // ロック取得試行（30秒まで待機）
+      if (!lock.tryLock(30000)) {
+        console.warn(`[Triggered] Lock acquisition failed for ${topicId}. Skipping.`);
+        return;
+      }
+      
+      // ステータス確認
+      const currentStatus = outputsRepo.getResearchStatus(topicId);
+      if (currentStatus !== 'pending') {
+        console.log(`[Triggered] Topic ${topicId} is already ${currentStatus}. Skipping.`);
+        lock.releaseLock();
+        return;
+      }
+      
+      // ステータスを processing に変更
+      outputsRepo.updateResearchStatus(topicId, 'processing');
+      lock.releaseLock(); // 早期解放（他のトピックを処理可能に）
+      
+      console.log(`[Triggered] Starting Deep Research for topic: ${topicId}`);
+      
+      const service = new DeepResearchService();
+      const intakeRepo = new IntakeQueueRepo();
+      const item = intakeRepo.getAll().find(i => i.item_id === topicId);
+      
+      if (!item) {
+        console.error(`Item not found: ${topicId}`);
+        outputsRepo.updateResearchStatus(topicId, 'failed');
+        TriggerManager.cleanupTriggerData(topicId);
+        return;
+      }
+      
+      // 調査実行
       service.conductResearch(item, topicId);
+      
+      // 完了
+      outputsRepo.updateResearchStatus(topicId, 'completed');
+      TriggerManager.cleanupTriggerData(topicId);
       console.log(`[Triggered] Deep Research completed for: ${topicId}`);
+      
     } catch (e) {
       console.error(`[Triggered] Error in deep research for ${topicId}:`, e);
+      outputsRepo.updateResearchStatus(topicId, 'failed');
+      TriggerManager.cleanupTriggerData(topicId);
+      if (lock.hasLock()) lock.releaseLock();
     }
   }
 
