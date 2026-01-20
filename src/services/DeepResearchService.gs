@@ -7,21 +7,21 @@ class DeepResearchService {
   }
 
   /**
-   * Promotedアイテムに対してDeep Researchを実行する
+   * Promotedアイテムに対してDeep Researchを実行する（トリガー登録版）
    * @param {number} limit
+   * @param {number} delayMinutes トリガー実行までの待機時間（分）
    */
-  processPromotedItems(limit = 1) { // 処理が重いのでデフォルトは少なめに
+  processPromotedItems(limit = 5, delayMinutes = 3) {
     const allIntake = this.intakeRepo.getAll();
     const targets = allIntake.filter(item => item.status === 'promoted').slice(0, limit);
     
-    console.log(`Starting Deep Research for ${targets.length} items...`);
+    console.log(`Scheduling Deep Research for ${targets.length} items...`);
 
-    targets.forEach(item => {
+    targets.forEach((item, index) => {
       try {
-        console.log(`Researching: ${item.title}`);
+        console.log(`Scheduling: ${item.title}`);
         
         // プロジェクトスプシの準備
-        // (Topic化前なので item_id を topic_id として扱う)
         const pseudoTopic = {
           topic_id: item.item_id,
           title_working: item.title,
@@ -30,15 +30,43 @@ class DeepResearchService {
         };
         const projectUrl = this.projectManager.createProject(pseudoTopic);
         
-        this.conductResearch(item, pseudoTopic.topic_id);
+        // トリガー登録（各アイテムを少しずつずらす）
+        const delay = delayMinutes + (index * 0.5); // 30秒ずつずらす
+        TriggerManager.createDelayedTrigger('runDeepResearchForTopic', delay, {
+          topicId: pseudoTopic.topic_id
+        });
         
-        // 完了後のステータス更新などは省略
+        console.log(`  -> Scheduled in ${delay} minutes.`);
         
-        Utilities.sleep(3000); 
       } catch (e) {
-        console.error(`Error in deep research for ${item.item_id}:`, e);
+        console.error(`Error scheduling deep research for ${item.item_id}:`, e);
       }
     });
+    
+    console.log(`All triggers scheduled. Research will start in ${delayMinutes} minutes.`);
+  }
+
+  /**
+   * 単一トピックに対するDeep Researchを実行（トリガーから呼ばれる）
+   * @param {string} topicId
+   */
+  static runForTopic(topicId) {
+    console.log(`[Triggered] Starting Deep Research for topic: ${topicId}`);
+    const service = new DeepResearchService();
+    const intakeRepo = new IntakeQueueRepo();
+    
+    const item = intakeRepo.getAll().find(i => i.item_id === topicId);
+    if (!item) {
+      console.error(`Item not found: ${topicId}`);
+      return;
+    }
+    
+    try {
+      service.conductResearch(item, topicId);
+      console.log(`[Triggered] Deep Research completed for: ${topicId}`);
+    } catch (e) {
+      console.error(`[Triggered] Error in deep research for ${topicId}:`, e);
+    }
   }
 
   /**

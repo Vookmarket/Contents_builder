@@ -69,6 +69,10 @@ class ProjectManager {
     });
 
     console.log(`Project created: ${url}`);
+    
+    // 6. スプレッドシート準備完了待機
+    Utilities.sleep(2000); // 2秒待機
+    
     return url;
   }
 

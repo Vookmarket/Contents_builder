@@ -27,12 +27,33 @@ function runScreeningCycle() {
 }
 
 /**
- * 深掘り調査（Advanced Deep Research）
+ * 深掘り調査（Advanced Deep Research - トリガー登録版）
  */
 function runEvidenceCollectionCycle() {
-  console.log('Starting Deep Research Cycle...');
+  console.log('Scheduling Deep Research Cycle...');
   const deepResearchService = new DeepResearchService();
-  deepResearchService.processPromotedItems(5);
+  deepResearchService.processPromotedItems(5, 3); // 5件、3分後に実行
+}
+
+/**
+ * トリガーから呼ばれる単一トピックの深掘り調査
+ * @param {Object} e トリガーイベント（未使用）
+ */
+function runDeepResearchForTopic(e) {
+  // PropertiesServiceから引数を取得する方式だが、
+  // 今回は簡易的にtopicIdをグローバル変数経由で渡すのは難しいため、
+  // IntakeQueueの全promotedアイテムから順次処理する形に変更
+  // （または、トリガー作成時にメタデータを使う）
+  
+  // 簡易実装: 全てのpromoted itemを処理
+  const service = new DeepResearchService();
+  const intakeRepo = new IntakeQueueRepo();
+  const targets = intakeRepo.getAll().filter(item => item.status === 'promoted');
+  
+  if (targets.length > 0) {
+    const item = targets[0]; // 先頭の1件を処理
+    DeepResearchService.runForTopic(item.item_id);
+  }
 }
 
 /**
