@@ -4,9 +4,8 @@
  */
 const Config = {
   GEMINI: {
-    // 実際の利用可能なモデル名に合わせて変更してください (例: gemini-1.5-flash, gemini-2.0-flash 等)
-    MODEL_SCREENING: 'gemini-1.5-flash',
-    MODEL_GENERATION: 'gemini-1.5-pro',
+    MODEL_SCREENING: 'gemini-3-flash-preview',
+    MODEL_GENERATION: 'gemini-3-pro-preview',
     API_VERSION: 'v1beta',
     PROMPT_VERSION: 'p-2026-01-20-01',
   },
