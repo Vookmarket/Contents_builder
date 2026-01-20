@@ -12,4 +12,11 @@ class OutputsRepo {
   add(item) {
     this.db.add(item);
   }
+
+  /**
+   * 委譲メソッド: getAll
+   */
+  getAll() {
+    return this.db.getAll();
+  }
 }
