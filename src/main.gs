@@ -45,6 +45,15 @@ function runTopicGenerationCycle() {
 }
 
 /**
+ * ステークホルダー分析（ドラフトトピックから）
+ */
+function runStakeholderAnalysisCycle() {
+  console.log('Starting Stakeholder Analysis Cycle...');
+  const stakeholderService = new StakeholderService();
+  stakeholderService.analyzeStakeholdersForDraftTopics();
+}
+
+/**
  * コンテンツ生成処理（トピックから台本生成）
  */
 function runContentGenerationCycle() {
@@ -65,6 +74,7 @@ function onOpen() {
     .addItem('2. スクリーニング実行', 'runScreeningCycle')
     .addItem('3. 一次ソース調査', 'runEvidenceCollectionCycle')
     .addItem('4. テーマ案生成', 'runTopicGenerationCycle')
-    .addItem('5. コンテンツ生成 (Shorts)', 'runContentGenerationCycle')
+    .addItem('5. ステークホルダー分析', 'runStakeholderAnalysisCycle')
+    .addItem('6. コンテンツ生成 (Shorts)', 'runContentGenerationCycle')
     .addToUi();
 }

@@ -4,8 +4,8 @@
  */
 const Config = {
   GEMINI: {
-    MODEL_SCREENING: 'gemini-3-flash',
-    MODEL_GENERATION: 'gemini-3-pro',
+    MODEL_SCREENING: 'gemini-3-flash-preview',
+    MODEL_GENERATION: 'gemini-3-pro-preview',
     API_VERSION: 'v1beta',
     PROMPT_VERSION: 'p-2026-01-20-01',
   },
