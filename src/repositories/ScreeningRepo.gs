@@ -1,10 +1,9 @@
 /**
  * スクリーニング結果のリポジトリ
- * @extends {SheetBase}
  */
-class ScreeningRepo extends SheetBase {
+class ScreeningRepo {
   constructor() {
-    super(Config.SHEETS.SCREENING, 'item_id');
+    this.db = new SheetAccess(Config.SHEETS.SCREENING, 'item_id');
   }
 
   /**
@@ -19,11 +18,11 @@ class ScreeningRepo extends SheetBase {
     // ただし、明示的な変換が必要な場合もあるので確認
     
     // 重複チェック（簡易）
-    const existing = this.getAll().find(r => r.item_id === screeningResult.item_id);
+    const existing = this.db.getAll().find(r => r.item_id === screeningResult.item_id);
     if (existing) {
-      this.update(screeningResult.item_id, screeningResult);
+      this.db.update(screeningResult.item_id, screeningResult);
     } else {
-      this.add(screeningResult);
+      this.db.add(screeningResult);
     }
   }
 }

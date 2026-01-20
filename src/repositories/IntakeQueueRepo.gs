@@ -1,10 +1,23 @@
 /**
  * 収集キューのリポジトリ
- * @extends {SheetBase}
  */
-class IntakeQueueRepo extends SheetBase {
+class IntakeQueueRepo {
   constructor() {
-    super(Config.SHEETS.INTAKE_QUEUE, 'item_id');
+    this.db = new SheetAccess(Config.SHEETS.INTAKE_QUEUE, 'item_id');
+  }
+
+  /**
+   * 委譲メソッド: getAll
+   */
+  getAll() {
+    return this.db.getAll();
+  }
+
+  /**
+   * 委譲メソッド: update
+   */
+  update(id, partial) {
+    return this.db.update(id, partial);
   }
 
   /**
@@ -15,12 +28,12 @@ class IntakeQueueRepo extends SheetBase {
   addNewItems(items) {
     if (items.length === 0) return 0;
 
-    const existingItems = this.getAll();
+    const existingItems = this.db.getAll();
     const existingKeys = new Set(existingItems.map(item => item.dedupe_key));
     
     let addedCount = 0;
-    const sheet = this.getSheet();
-    let headers = this.getHeaders(sheet);
+    const sheet = this.db.getSheet();
+    let headers = this.db.getHeaders(sheet);
     
     // ヘッダーがまだない場合
     if (headers.length === 0 && items.length > 0) {
@@ -35,7 +48,7 @@ class IntakeQueueRepo extends SheetBase {
         // 重複なし
         item.item_id = item.item_id || Utilities.getUuid(); // ID生成
         item.status = 'new';
-        rowsToAdd.push(this.mapObjToRow(headers, item));
+        rowsToAdd.push(this.db.mapObjToRow(headers, item));
         existingKeys.add(item.dedupe_key); // 同一バッチ内の重複も防ぐ
         addedCount++;
       }
@@ -56,7 +69,7 @@ class IntakeQueueRepo extends SheetBase {
    * @returns {Object[]}
    */
   getUnprocessedItems(limit = 20) {
-    const all = this.getAll();
+    const all = this.db.getAll();
     return all.filter(item => item.status === 'new').slice(0, limit);
   }
 }

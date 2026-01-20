@@ -1,10 +1,9 @@
 /**
  * 根拠・証拠データのリポジトリ
- * @extends {SheetBase}
  */
-class EvidenceIndexRepo extends SheetBase {
+class EvidenceIndexRepo {
   constructor() {
-    super(Config.SHEETS.EVIDENCE_INDEX, 'claim_id');
+    this.db = new SheetAccess(Config.SHEETS.EVIDENCE_INDEX, 'claim_id');
   }
 
   /**
@@ -13,7 +12,7 @@ class EvidenceIndexRepo extends SheetBase {
    * @returns {Object[]}
    */
   getByItemId(itemId) {
-    const all = this.getAll();
+    const all = this.db.getAll();
     return all.filter(ev => ev.related_item_id === itemId);
   }
   
@@ -27,8 +26,8 @@ class EvidenceIndexRepo extends SheetBase {
     // 既存チェックは簡易的に省略（上書き更新はIDが必要だが、今回は新規追加メイン）
     // 必要なら既存IDリストを取得してfilterする
     
-    const sheet = this.getSheet();
-    let headers = this.getHeaders(sheet);
+    const sheet = this.db.getSheet();
+    let headers = this.db.getHeaders(sheet);
     if (headers.length === 0) {
        headers = Object.keys(evidences[0]);
        sheet.appendRow(headers);
@@ -37,7 +36,7 @@ class EvidenceIndexRepo extends SheetBase {
     // 1件ずつaddしているが、量が多い場合はmapObjToRowしてsetValuesすべき
     evidences.forEach(ev => {
       ev.claim_id = ev.claim_id || Utilities.getUuid();
-      this.add(ev);
+      this.db.add(ev);
     });
   }
 }

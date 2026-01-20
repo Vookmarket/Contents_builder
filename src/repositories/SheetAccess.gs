@@ -1,7 +1,8 @@
 /**
- * シートアクセスの基底クラス
+ * シートアクセスヘルパー
+ * （継承用ではなく、コンポジションとして使用する）
  */
-class SheetBase {
+class SheetAccess {
   /**
    * @param {string} sheetName
    * @param {string} primaryKey

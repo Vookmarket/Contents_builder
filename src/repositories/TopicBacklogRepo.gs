@@ -1,10 +1,23 @@
 /**
  * トピックバックログのリポジトリ
- * @extends {SheetBase}
  */
-class TopicBacklogRepo extends SheetBase {
+class TopicBacklogRepo {
   constructor() {
-    super(Config.SHEETS.TOPIC_BACKLOG, 'topic_id');
+    this.db = new SheetAccess(Config.SHEETS.TOPIC_BACKLOG, 'topic_id');
+  }
+
+  /**
+   * 委譲メソッド: add
+   */
+  add(item) {
+    this.db.add(item);
+  }
+
+  /**
+   * 委譲メソッド: update
+   */
+  update(id, partial) {
+    this.db.update(id, partial);
   }
 
   /**
@@ -13,7 +26,7 @@ class TopicBacklogRepo extends SheetBase {
    * @returns {Object[]}
    */
   getByStatus(status) {
-    const all = this.getAll();
+    const all = this.db.getAll();
     return all.filter(topic => topic.status === status);
   }
 }

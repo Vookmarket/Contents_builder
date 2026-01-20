@@ -1,9 +1,15 @@
 /**
  * 生成物管理のリポジトリ
- * @extends {SheetBase}
  */
-class OutputsRepo extends SheetBase {
+class OutputsRepo {
   constructor() {
-    super(Config.SHEETS.OUTPUTS, 'topic_id');
+    this.db = new SheetAccess(Config.SHEETS.OUTPUTS, 'topic_id');
+  }
+
+  /**
+   * 委譲メソッド: add
+   */
+  add(item) {
+    this.db.add(item);
   }
 }
