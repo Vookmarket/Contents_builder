@@ -14,9 +14,10 @@ class SourceDiscoveryService {
     
     console.log(`Discovering sources for theme: ${theme}`);
 
-    // 1. Geminiによるキーワード拡張
+    // 1. Geminiによるキーワード拡張（2段階）
     const keywords = this.expandKeywords(theme);
-    console.log(`Expanded keywords: ${keywords.join(', ')}`);
+    console.log(`Base keywords: ${keywords.base_keywords.join(', ')}`);
+    console.log(`Policy keywords: ${keywords.policy_keywords.join(', ')}`);
 
     // 2. RSS URLの生成
     const sources = this.generateSources(theme, keywords);
@@ -38,64 +39,96 @@ class SourceDiscoveryService {
   }
 
   /**
-   * Geminiで関連キーワード・組織を抽出
+   * Geminiで関連キーワードを2段階で抽出
    * @param {string} theme
-   * @returns {string[]}
+   * @returns {Object} { base_keywords: string[], policy_keywords: string[] }
    */
   expandKeywords(theme) {
     const systemPrompt = `
 あなたは情報収集のプロフェッショナルです。
-入力された「テーマ」について、Googleニュースで網羅的に情報を収集するための「検索キーワード」を5つ挙げて下さい。
-以下の観点を含めてください：
-1. テーマそのもののキーワード
-2. 関連する省庁・公的機関・業界団体名（例: "環境省", "日本獣医師会"）
-3. 具体的な法律名や制度名
-4. 対立軸や論点（例: "数値規制", "アニマルウェルフェア"）
+入力されたテーマについて、以下の2種類のキーワードを生成してください:
+
+1. ベースキーワード（1〜2個）: テーマそのものや関連トレンド
+   - 目的: 時事問題や新しいトレンドを逃さない
+   - 例: 「動物愛護」「保護猫」
+   
+2. 政策焦点キーワード（3〜4個）: テーマ + 法律・政治・経済の複合検索
+   - 目的: 法改正、行政、統計など、政策性の高い記事を狙い撃ち
+   - Google検索演算子を使った複合クエリを生成
+   - 例: 
+     - 「動物愛護 AND (法律 OR 改正 OR 政策)」
+     - 「動物愛護 AND (統計 OR 調査 OR 報告)」
+     - 「動物愛護 AND (省庁 OR 自治体 OR 行政)」
 
 JSON Schema:
 {
-  "keywords": string[]
+  "base_keywords": string[],      // 1-2個
+  "policy_keywords": string[]     // 3-4個、AND/OR演算子を含む
 }
 `;
     const userPrompt = `Theme: ${theme}`;
 
     try {
       const json = this.geminiService.generateJson(
-        Config.GEMINI.MODEL_SCREENING, // Flashで十分
+        Config.GEMINI.MODEL_SCREENING,
         systemPrompt,
         userPrompt
       );
-      return json.keywords || [theme];
+      return {
+        base_keywords: json.base_keywords || [theme],
+        policy_keywords: json.policy_keywords || []
+      };
     } catch (e) {
       console.error('Keyword expansion failed:', e);
-      return [theme];
+      return {
+        base_keywords: [theme],
+        policy_keywords: []
+      };
     }
   }
 
   /**
-   * キーワードからRSSソースオブジェクトを生成
+   * キーワードからRSSソースオブジェクトを生成（ハイブリッド戦略）
    * @param {string} theme
-   * @param {string[]} keywords
+   * @param {Object} keywords { base_keywords: string[], policy_keywords: string[] }
    * @returns {Object[]}
    */
   generateSources(theme, keywords) {
     const sources = [];
 
-    keywords.forEach(kw => {
-      // Google News RSS (JP)
+    // ベースキーワード: 直近1日（トレンド重視）
+    keywords.base_keywords.forEach(kw => {
       const encodedKw = encodeURIComponent(kw);
       const url = `https://news.google.com/rss/search?q=${encodedKw}+when:1d&hl=ja&gl=JP&ceid=JP:ja`;
       
       sources.push({
         source_id: Utilities.getUuid(),
-        name: `Auto: ${kw} (${theme})`,
+        name: `[Base] ${kw}`,
         type: 'RSS',
         url: url,
         fetch_freq: 'daily',
         lang: 'ja',
         reliability_base: 3,
         enabled: 'TRUE',
-        memo: `Generated for theme: ${theme}`
+        memo: `Base keyword for theme: ${theme}`
+      });
+    });
+
+    // 政策焦点キーワード: 過去1週間（政策性重視、やや広く）
+    keywords.policy_keywords.forEach(kw => {
+      const encodedKw = encodeURIComponent(kw);
+      const url = `https://news.google.com/rss/search?q=${encodedKw}+when:7d&hl=ja&gl=JP&ceid=JP:ja`;
+      
+      sources.push({
+        source_id: Utilities.getUuid(),
+        name: `[Policy] ${kw}`,
+        type: 'RSS',
+        url: url,
+        fetch_freq: 'daily',
+        lang: 'ja',
+        reliability_base: 4, // 政策焦点は信頼度を少し高く設定
+        enabled: 'TRUE',
+        memo: `Policy keyword for theme: ${theme}`
       });
     });
 
