@@ -1,10 +1,9 @@
 class DeepResearchService {
   constructor() {
     this.intakeRepo = new IntakeQueueRepo();
-    this.evidenceRepo = new EvidenceIndexRepo();
     this.fetchService = new FetchService();
     this.geminiService = new GeminiService();
-    this.outputsRepo = new OutputsRepo();
+    this.projectManager = new ProjectManager();
   }
 
   /**
@@ -20,7 +19,21 @@ class DeepResearchService {
     targets.forEach(item => {
       try {
         console.log(`Researching: ${item.title}`);
-        this.conductResearch(item);
+        
+        // プロジェクトスプシの準備
+        // (Topic化前なので item_id を topic_id として扱う)
+        const pseudoTopic = {
+          topic_id: item.item_id,
+          title_working: item.title,
+          angle: 'Auto-Research',
+          target_media: '[]'
+        };
+        const projectUrl = this.projectManager.createProject(pseudoTopic);
+        
+        this.conductResearch(item, pseudoTopic.topic_id);
+        
+        // 完了後のステータス更新などは省略
+        
         Utilities.sleep(3000); 
       } catch (e) {
         console.error(`Error in deep research for ${item.item_id}:`, e);
@@ -31,8 +44,9 @@ class DeepResearchService {
   /**
    * 1つのアイテムに対するリサーチ実行
    * @param {Object} item
+   * @param {string} topicId
    */
-  conductResearch(item) {
+  conductResearch(item, topicId) {
     // 1. 調査計画の策定
     console.log('  -> Planning research...');
     const plan = this.planResearch(item);
@@ -43,28 +57,16 @@ class DeepResearchService {
     let relatedArticles = [];
     plan.queries.forEach(query => {
       const articles = this.fetchService.fetchByQuery(query);
-      // 上位3件程度を採用
       relatedArticles = relatedArticles.concat(articles.slice(0, 3));
       Utilities.sleep(1000);
     });
     console.log(`  -> Collected ${relatedArticles.length} related articles.`);
 
-    // 3. 情報の統合とレポート作成
-    console.log('  -> Synthesizing report...');
-    const reportMarkdown = this.verifyAndSynthesize(item, relatedArticles, plan);
-
-    // 4. 保存
-    console.log('  -> Saving report...');
-    const reportUrl = this.saveReport(item, reportMarkdown);
+    // 3. プロジェクトシートへの保存
+    console.log('  -> Saving to project sheet...');
+    this.saveToProjectSheet(topicId, relatedArticles);
     
-    // Outputsに記録
-    this.outputsRepo.add({
-      topic_id: item.item_id, // item_id を topic_id として扱う（簡易実装）
-      md_evidence_url: reportUrl,
-      generated_at: new Date().toISOString()
-    });
-
-    console.log(`  -> Deep Research Completed. Report: ${reportUrl}`);
+    console.log(`  -> Deep Research Completed.`);
   }
 
   /**
@@ -100,90 +102,30 @@ JSON Schema:
   }
 
   /**
-   * 統合レポートの作成
-   * @param {Object} item
-   * @param {Object[]} relatedArticles
-   * @param {Object} plan
-   * @returns {string} Markdown
+   * プロジェクトシートへの保存
+   * @param {string} topicId
+   * @param {Object[]} articles
    */
-  verifyAndSynthesize(item, relatedArticles, plan) {
-    const relatedText = relatedArticles.map(a => `- ${a.title} (${a.url}): ${a.snippet}`).join('\n');
-    
-    const systemPrompt = `
-あなたは編集長です。
-「元の記事」と、追加調査で得られた「関連情報」を突き合わせ、
-情報の正確性、多面性、不足情報の補完状況をまとめた「リサーチレポート」をMarkdown形式で作成してください。
-
-構成案:
-# リサーチレポート: {記事タイトル}
-
-## 1. 概要
-記事の要約。
-
-## 2. 検証結果 (Fact Check)
-元の記事の主張と、関連情報との整合性。
-- 一致している点
-- 矛盾または相違がある点
-- 未確認の点
-
-## 3. 多面的な視点
-- 異なる立場からの見解
-- 過去の経緯や背景
-
-## 4. 参考文献
-- 一次ソース候補
-- 参照した記事一覧
-`;
-
-    const userPrompt = `
-Original Article:
-Title: ${item.title}
-Snippet: ${item.snippet}
-
-Research Plan:
-Focus: ${plan.focus_points.join(', ')}
-
-Collected Related Info:
-${relatedText}
-`;
-
-    return this.geminiService.generateContent(
-      Config.GEMINI.MODEL_GENERATION,
-      systemPrompt,
-      userPrompt
-    );
-  }
-
-  /**
-   * レポートをDriveに保存
-   * @param {Object} item
-   * @param {string} markdown
-   * @returns {string} URL
-   */
-  saveReport(item, markdown) {
-    // ContentServiceのsaveToDriveロジックと重複するが、今回は簡易的に再実装または共通化
-    // ここでは簡易実装
-    const folders = DriveApp.getFoldersByName(Config.DRIVE.ROOT_FOLDER_NAME);
-    let rootFolder;
-    if (folders.hasNext()) {
-      rootFolder = folders.next();
-    } else {
-      rootFolder = DriveApp.createFolder(Config.DRIVE.ROOT_FOLDER_NAME);
+  saveToProjectSheet(topicId, articles) {
+    const sheet = this.projectManager.getProjectSheet(topicId, '01_Research');
+    if (!sheet) {
+      console.warn(`Project sheet 01_Research not found for ${topicId}`);
+      return;
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    // item_id を使ってフォルダ作成
-    const folderName = `${today}__research-${item.item_id.substring(0, 8)}`;
-    
-    let folder;
-    const subFolders = rootFolder.getFoldersByName(folderName);
-    if (subFolders.hasNext()) {
-      folder = subFolders.next();
-    } else {
-      folder = rootFolder.createFolder(folderName);
-    }
+    const rows = articles.map(a => [
+      a.url,
+      a.title,
+      a.published_at || new Date().toISOString(),
+      a.snippet,
+      '', // key_claims (未抽出)
+      '', // reliability
+      'Auto-collected'
+    ]);
 
-    const file = folder.createFile('01_research_report.md', markdown, MimeType.PLAIN_TEXT);
-    return file.getUrl();
+    if (rows.length > 0) {
+      const lastRow = sheet.getLastRow();
+      sheet.getRange(lastRow + 1, 1, rows.length, rows[0].length).setValues(rows);
+    }
   }
 }
