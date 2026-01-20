@@ -7,6 +7,13 @@ class SourceRegistryRepo {
   }
 
   /**
+   * 委譲メソッド: add
+   */
+  add(item) {
+    this.db.add(item);
+  }
+
+  /**
    * 有効な収集元のみを取得
    * @returns {Object[]}
    */
