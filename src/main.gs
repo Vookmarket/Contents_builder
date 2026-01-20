@@ -18,6 +18,15 @@ function runScreeningCycle() {
 }
 
 /**
+ * 深掘り調査（一次ソース収集）
+ */
+function runEvidenceCollectionCycle() {
+  console.log('Starting Evidence Collection Cycle...');
+  const evidenceService = new EvidenceService();
+  evidenceService.processPromotedItems(5);
+}
+
+/**
  * トピック生成処理（Promotedアイテムから）
  */
 function runTopicGenerationCycle() {
@@ -43,7 +52,8 @@ function onOpen() {
   ui.createMenu('Contents Builder')
     .addItem('1. 収集を実行', 'runIntakeCycle')
     .addItem('2. スクリーニング実行', 'runScreeningCycle')
-    .addItem('3. テーマ案生成', 'runTopicGenerationCycle')
-    .addItem('4. コンテンツ生成 (Shorts)', 'runContentGenerationCycle')
+    .addItem('3. 一次ソース調査', 'runEvidenceCollectionCycle')
+    .addItem('4. テーマ案生成', 'runTopicGenerationCycle')
+    .addItem('5. コンテンツ生成 (Shorts)', 'runContentGenerationCycle')
     .addToUi();
 }
