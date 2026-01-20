@@ -3,7 +3,8 @@
  */
 function runIntakeCycle() {
   console.log('Starting Intake Cycle...');
-  // TODO: Implement FetchService and call it here
+  const fetchService = new FetchService();
+  fetchService.fetchAll();
 }
 
 /**
