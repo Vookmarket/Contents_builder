@@ -48,6 +48,10 @@ AI を使うための鍵（APIキー）を設定します。
     - **値**: (Google AI Studio で取得した API キー)
       - ※キーがない場合は [Google AI Studio](https://aistudio.google.com/) から "Get API key" で作成してください。
 
+### モデル設定の確認
+コード内の `src/config/_Config.gs` に記載されている Gemini のモデル名（例: `gemini-1.5-flash`）が、現在利用可能なものであるか [Gemini Models Documentation](https://ai.google.dev/models/gemini) で確認してください。
+もし古いモデル名や無効なモデル名になっている場合は、`_Config.gs` を直接編集して有効なモデル名に変更してください。
+
 ---
 
 ## 🚀 使い方
