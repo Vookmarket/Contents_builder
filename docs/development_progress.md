@@ -133,36 +133,9 @@ reliability_score = base_score + source_bonus + clarity_bonus
 
 ---
 
-## 未実装機能（Phase 4-6）
+## 未実装機能（Phase 6）
 
 これらは `docs/deep_research_enhancement_plan.md` に詳細設計済み。
-
-### Phase 4: 多面的視点収集
-
-**目的**: 賛成派・反対派・中立の視点を明示的に収集し、偏向を防ぐ
-
-**実装計画**:
-- `planResearch()` のプロンプトを改善
-- 4種類のクエリを生成:
-  - `queries_pro`: 推進派の意見
-  - `queries_con`: 反対派の意見
-  - `queries_neutral`: 中立的分析
-  - `queries_primary`: 一次ソース
-- 各記事に `bias_indicator` を設定（pro/con/neutral）
-
----
-
-### Phase 5: ファクトチェック機能
-
-**目的**: 元記事の数値・日付を一次ソースと照合し、誤情報を検出
-
-**実装計画**:
-- `FactCheckService.gs` を新規作成
-- プロセス:
-  1. Geminiで元記事から数値・日付を抽出
-  2. 一次ソースで同じ情報を検索
-  3. 値を比較して一致/不一致を判定
-  4. 結果を `04_FactCheck` シートに記録
 
 ---
 
@@ -217,30 +190,36 @@ promoted ステータス
 【一次ソース調査 (DeepResearchService)】
   ↓
 Step 1: 一次ソース収集（政府・法令・統計）
-Step 2: 二次ソース収集（ニュース記事）
-Step 3: 信頼性評価（0-100点）
-Step 4: プロジェクトシートに保存
+Step 2: 多面的視点での調査計画生成 🆕
+  - queries_pro（推進派）
+  - queries_con（反対派）
+  - queries_neutral（中立）
+  - queries_primary（一次ソース）
+Step 3: 視点別に記事収集 🆕
+  - 推進派記事（bias_indicator: pro）
+  - 反対派記事（bias_indicator: con）
+  - 中立記事（bias_indicator: neutral）
+  - 追加の一次ソース（bias_indicator: neutral）
+Step 4: 信頼性評価（0-100点）
+Step 5: プロジェクトシートに保存
+Step 6: ファクトチェック実行 🆕
+  - 元記事から数値・日付を抽出
+  - 一次ソースと照合
+  - 04_FactCheck シートに記録
   ↓
 01_Research シートに集約
 （source_type, reliability_score, bias_indicator 等を記録）
+04_FactCheck シートにファクトチェック結果を記録 🆕
 ```
 
 ---
 
 ## 次回への引き継ぎ事項
 
-### 優先度高（推奨実装）
-1.  **Phase 4: 多面的視点収集**
-    - 最も効果が高く、実装も比較的容易
-    - 偏向防止に直結
-
-2.  **Phase 5: ファクトチェック機能**
-    - 数値の誤りを自動検出
-    - 信頼性向上に寄与
-
-### 優先度中
-3.  **Phase 6: 時系列分析機能**
-    - 背景理解に有用だが、Phase 4-5より優先度は低い
+### 優先度中（推奨実装）
+1.  **Phase 6: 時系列分析機能**
+    - 背景理解に有用
+    - 法改正履歴や重要イベントの可視化
 
 ### 検討事項
 - **Gemini API のコスト監視**: 現在、記事ごとに複数回API呼び出しを行っているため、利用量を確認
@@ -257,6 +236,99 @@ Step 4: プロジェクトシートに保存
 
 ---
 
+---
+
+### Phase 4: 多面的視点収集 ✅
+
+**目的**: 賛成派・反対派・中立の視点を明示的に収集し、偏向を防ぐ
+
+**実装内容**:
+
+#### `DeepResearchService.gs`（大幅改修）
+
+**1. planResearch() の改善**:
+- 従来: 3つの一般的なクエリのみ生成
+- 改善後: 4種類の視点別クエリを生成
+  - `queries_pro`: 推進派・賛成派の意見
+  - `queries_con`: 反対派・慎重派の意見
+  - `queries_neutral`: 中立的な分析
+  - `queries_primary`: 一次ソース（site:演算子使用）
+
+**2. conductResearch() の改善**:
+- 視点別に記事を収集し、各記事に適切な `bias_indicator` を設定
+  - 推進派記事 → `bias_indicator: 'pro'`
+  - 反対派記事 → `bias_indicator: 'con'`
+  - 中立記事 → `bias_indicator: 'neutral'`
+  - 一次ソース → `bias_indicator: 'neutral'`
+
+**3. フォールバック機能**:
+- Gemini APIエラー時の代替処理を追加（`_getFallbackPlan()`）
+- レスポンス検証機能を実装
+
+**4. 視点別統計ログ**:
+- 収集結果をpro/con/neutral/primaryで集計してログ出力
+
+**効果**:
+- 偏向防止: 賛成・反対両方の意見を確実に収集
+- 視点の可視化: `01_Research` シートで立場が一目瞭然
+- バランスの取れたコンテンツ生成が可能
+
+**変更ファイル**:
+- `src/services/DeepResearchService.gs`
+
+**Commit**: （次回コミット時に記録）
+
+---
+
+### Phase 5: ファクトチェック機能 ✅
+
+**目的**: 元記事の数値・日付を一次ソースと照合し、誤情報を検出
+
+**実装内容**:
+
+#### `FactCheckService.gs`（新規作成）
+
+**主要メソッド**:
+1. **extractClaims()**: 
+   - Geminiで元記事から検証すべき数値・日付を抽出
+   - JSON Schema: `{ claims: [{ claim_text, claim_value, claim_type }] }`
+   - 最大5つまで
+
+2. **verifyClaim()**:
+   - 一次ソースから関連する数値を検索
+   - 値を比較（±5%の許容範囲）
+   - 判定: `verified` / `conflicting` / `unverified`
+
+3. **verify()**:
+   - メインメソッド：全体のフローを統合
+   - `04_FactCheck` シートに結果を記録
+
+**処理フロー**:
+```
+1. 元記事から数値抽出（Gemini）
+2. プロジェクトシートから一次ソース取得
+3. 一次ソースで数値検索（Gemini）
+4. 値を比較・判定
+5. 04_FactCheck シートに記録
+```
+
+**数値比較ロジック**:
+- 完全一致チェック
+- 数値型：±5%の許容範囲
+- 日付型：完全一致のみ
+
+**統合**:
+- `DeepResearchService.conductResearch()` に Step 6 として追加
+- 信頼性評価の後、プロジェクトシート保存と並行して実行
+
+**変更ファイル**:
+- `src/services/FactCheckService.gs`（新規）
+- `src/services/DeepResearchService.gs`
+
+**Commit**: （次回コミット時に記録）
+
+---
+
 ## 変更履歴
 
 | 日付 | Phase | Commit | 概要 |
@@ -265,3 +337,5 @@ Step 4: プロジェクトシートに保存
 | 2026/01/20 | Phase 2 | fe52e54 | 一次ソース収集機能 |
 | 2026/01/20 | - | a2e4553 | ハイブリッド収集戦略 |
 | 2026/01/21 | Phase 3 | bb08051 | 信頼性評価エンジン |
+| 2026/01/21 | Phase 4 | - | 多面的視点収集 |
+| 2026/01/21 | Phase 5 | - | ファクトチェック機能 |

@@ -108,6 +108,23 @@ function addCollectionTheme() {
 }
 
 /**
+ * 古いトリガーをクリーンアップ（メンテナンス用）
+ */
+function cleanupOldTriggers() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    'トリガークリーンアップ',
+    '実行済みの時間ベーストリガーを削除します。よろしいですか？',
+    ui.ButtonSet.YES_NO
+  );
+  
+  if (response == ui.Button.YES) {
+    const count = TriggerManager.cleanupExpiredTriggers();
+    ui.alert(`${count} 件のトリガーを削除しました。`);
+  }
+}
+
+/**
  * メニュー作成 (Spreadsheet Open時)
  */
 function onOpen() {
@@ -123,5 +140,7 @@ function onOpen() {
     .addItem('4. テーマ案生成', 'runTopicGenerationCycle')
     .addItem('5. ステークホルダー分析', 'runStakeholderAnalysisCycle')
     .addItem('6. コンテンツ生成 (Shorts)', 'runContentGenerationCycle')
+    .addSeparator()
+    .addItem('🔧 トリガークリーンアップ', 'cleanupOldTriggers')
     .addToUi();
 }

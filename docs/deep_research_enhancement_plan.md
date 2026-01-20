@@ -87,13 +87,11 @@ clarity_bonus (0-20): Geminiによる評価
 
 ---
 
-## Phase 4: 多面的視点収集（未実装）
+## Phase 4: 多面的視点収集 ✅
 
-### 拡張ポイント: `DeepResearchService.planResearch()`
+### 実装完了: `DeepResearchService.planResearch()`
 
-**現状の問題**: 単純なキーワード検索のみで、視点の偏りが発生しやすい
-
-**改善策**: 視点を明示的に指定したクエリ生成
+**実装内容**: 4種類の視点別クエリを生成し、バランスの取れた情報収集を実現
 
 **Geminiプロンプト改善**:
 ```
@@ -128,37 +126,37 @@ JSON Schema:
 
 ---
 
-## Phase 5: ファクトチェック機能（未実装）
+## Phase 5: ファクトチェック機能 ✅
 
-### 実装予定: `FactCheckService.gs`
+### 実装完了: `FactCheckService.gs`
 
 **目的**: 元記事の数値・日付を一次ソースと照合
 
+**実装内容**:
+
+**主要メソッド**:
+- `extractClaims()`: 元記事から数値・日付を抽出（Gemini）
+- `verifyClaim()`: 一次ソースと照合
+- `verify()`: 全体フローを統合、04_FactCheckシートに記録
+
 **処理フロー**:
-1.  **元記事から数値・日付を抽出**
-    ```
-    Geminiプロンプト:
-    「以下の記事から、検証すべき具体的な数値・日付を抽出してください。
-    例: "2023年度の殺処分数は2万頭"
-    JSON Schema: { "claims": [{ "text": string, "value": string }] }」
-    ```
+1. 元記事から数値・日付を抽出（Gemini）
+2. プロジェクトシート（01_Research）から一次ソースを取得
+3. 一次ソースで関連する数値を検索（Gemini）
+4. 値を比較（±5%の許容範囲）
+5. 結果を `04_FactCheck` シートに記録
 
-2.  **一次ソースで同じ情報を検索**
-    - 例: `site:env.go.jp 殺処分 2023 統計`
-    - 検索結果から数値を抽出（Gemini使用）
+**判定ロジック**:
+- `verified`: 一致（数値型は±5%許容）
+- `conflicting`: 不一致（警告）
+- `unverified`: 一次ソースで見つからず
 
-3.  **照合と判定**
-    - 元記事の値と一次ソースの値を比較
-    - 一致 → `"verified"`
-    - 不一致 → `"conflicting"` （警告）
-    - 見つからず → `"unverified"`
-
-4.  **結果を `04_FactCheck` シートに記録**
-    - `claim_text`: 「2023年度の殺処分数は2万頭」
-    - `claim_value`: 「20,000」
-    - `source_value`: 「19,705」
-    - `match_status`: 「conflicting」
-    - `source_url`: 環境省URL
+**04_FactCheck シート構造**:
+- `claim_text`: 「2023年度の殺処分数は2万頭」
+- `claim_value`: 「20000」
+- `source_value`: 「19705」
+- `match_status`: `verified`/`conflicting`/`unverified`
+- `source_url`: 環境省URL
 
 ---
 
@@ -238,8 +236,8 @@ conductResearch(item, topicId) {
 
 ## 実装優先度
 
-1.  **Phase 2 (一次ソース収集)**: 最優先。情報の正確性に直結。
-2.  **Phase 3 (信頼性評価)**: 高優先。誤情報の混入を防ぐ。
-3.  **Phase 4 (多面的視点)**: 高優先。偏向を防ぐ。
-4.  **Phase 5 (ファクトチェック)**: 中優先。数値の正確性を担保。
-5.  **Phase 6 (時系列分析)**: 中優先。背景理解を深める。
+1.  **Phase 2 (一次ソース収集)**: ✅ 完了
+2.  **Phase 3 (信頼性評価)**: ✅ 完了
+3.  **Phase 4 (多面的視点)**: ✅ 完了
+4.  **Phase 5 (ファクトチェック)**: ✅ 完了
+5.  **Phase 6 (時系列分析)**: 未実装。背景理解を深める。

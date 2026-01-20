@@ -102,12 +102,12 @@ class DeepResearchService {
   }
 
   /**
-   * 1つのアイテムに対するリサーチ実行（拡張版）
+   * 1つのアイテムに対するリサーチ実行（Phase 4: 多面的視点対応版）
    * @param {Object} item
    * @param {string} topicId
    */
   conductResearch(item, topicId) {
-    // 1. 一次ソースの収集
+    // 1. 一次ソースの収集（既存の一次ソース収集サービス）
     console.log('  -> Step 1: Collecting primary sources...');
     const primaryQueries = this.primarySourceService.generatePrimaryQueries(item);
     const primarySources = [];
@@ -118,70 +118,156 @@ class DeepResearchService {
     });
     console.log(`  -> Collected ${primarySources.length} primary sources.`);
 
-    // 2. 二次ソース（ニュース記事）の収集
-    console.log('  -> Step 2: Planning research for news articles...');
+    // 2. 多面的視点での調査計画生成
+    console.log('  -> Step 2: Planning multi-perspective research...');
     const plan = this.planResearch(item);
-    console.log(`  -> Generated ${plan.queries.length} search queries.`);
-    
-    const newsArticles = [];
-    plan.queries.forEach(query => {
-      const articles = this.fetchService.fetchByQuery(query, 3);
-      articles.forEach(a => {
-        a.source_type = 'news';
-        a.bias_indicator = 'unknown';
-      });
-      newsArticles.push(...articles);
-      Utilities.sleep(1000);
-    });
-    console.log(`  -> Collected ${newsArticles.length} news articles.`);
+    console.log('  -> Generated queries for 4 perspectives (pro/con/neutral/primary).');
 
-    // 3. 信頼性評価
-    console.log('  -> Step 3: Evaluating reliability...');
+    // 3. 推進派の意見収集
+    console.log('  -> Step 3a: Collecting pro-perspective articles...');
+    const proArticles = this.fetchService.fetchByQuery(plan.queries_pro, 3);
+    proArticles.forEach(a => {
+      a.source_type = 'news';
+      a.bias_indicator = 'pro';
+    });
+    console.log(`  -> Collected ${proArticles.length} pro-perspective articles.`);
+    Utilities.sleep(1000);
+
+    // 4. 反対派の意見収集
+    console.log('  -> Step 3b: Collecting con-perspective articles...');
+    const conArticles = this.fetchService.fetchByQuery(plan.queries_con, 3);
+    conArticles.forEach(a => {
+      a.source_type = 'news';
+      a.bias_indicator = 'con';
+    });
+    console.log(`  -> Collected ${conArticles.length} con-perspective articles.`);
+    Utilities.sleep(1000);
+
+    // 5. 中立的分析の収集
+    console.log('  -> Step 3c: Collecting neutral-perspective articles...');
+    const neutralArticles = this.fetchService.fetchByQuery(plan.queries_neutral, 3);
+    neutralArticles.forEach(a => {
+      a.source_type = 'news';
+      a.bias_indicator = 'neutral';
+    });
+    console.log(`  -> Collected ${neutralArticles.length} neutral-perspective articles.`);
+    Utilities.sleep(1000);
+
+    // 6. 追加の一次ソース収集（計画生成されたクエリから）
+    console.log('  -> Step 3d: Collecting additional primary sources...');
+    const additionalPrimary = this.fetchService.fetchByQuery(plan.queries_primary, 3);
+    additionalPrimary.forEach(a => {
+      a.source_type = a.source_type || 'official'; // 既存のsource_typeを維持、なければofficial
+      a.bias_indicator = 'neutral'; // 一次ソースは中立
+    });
+    console.log(`  -> Collected ${additionalPrimary.length} additional primary sources.`);
+    Utilities.sleep(1000);
+
+    // 7. 信頼性評価
+    console.log('  -> Step 4: Evaluating reliability...');
     const evaluator = new ReliabilityEvaluator();
-    const allArticles = [...primarySources, ...newsArticles];
+    const allArticles = [...primarySources, ...proArticles, ...conArticles, ...neutralArticles, ...additionalPrimary];
     allArticles.forEach(article => {
       article.reliability_score = evaluator.evaluate(article);
       Utilities.sleep(500); // Gemini API レート制限対策
     });
     console.log(`  -> Reliability evaluation completed.`);
 
-    // 4. プロジェクトシートへの保存
-    console.log('  -> Step 4: Saving to project sheet...');
+    // 8. プロジェクトシートへの保存
+    console.log('  -> Step 5: Saving to project sheet...');
     this.saveToProjectSheet(topicId, allArticles);
     
-    console.log(`  -> Deep Research Completed (${allArticles.length} sources total).`);
+    // 9. ファクトチェック実行
+    console.log('  -> Step 6: Fact checking...');
+    const factCheckService = new FactCheckService();
+    factCheckService.verify(item, topicId);
+    
+    // 視点別の集計をログ出力
+    const stats = {
+      total: allArticles.length,
+      pro: proArticles.length,
+      con: conArticles.length,
+      neutral: neutralArticles.length,
+      primary: primarySources.length + additionalPrimary.length
+    };
+    console.log(`  -> Deep Research Completed: Total=${stats.total}, Pro=${stats.pro}, Con=${stats.con}, Neutral=${stats.neutral}, Primary=${stats.primary}`);
   }
 
   /**
-   * 調査計画の生成
+   * 調査計画の生成（Phase 4: 多面的視点対応）
    * @param {Object} item
-   * @returns {Object} { queries: string[], focus_points: string[] }
+   * @returns {Object} { queries_pro: string, queries_con: string, queries_neutral: string, queries_primary: string, focus_points: string[] }
    */
   planResearch(item) {
     const systemPrompt = `
 あなたは調査ジャーナリストです。
-ニュース記事のタイトルと概要から、この記事の信憑性を検証し、背景理解を深めるために
-「追加調査すべき検索キーワード」を3つ挙げて下さい。
-特に、一次ソース（法令、統計、公式発表）や、対立する視点を探すためのキーワードを含めてください。
+以下の記事について、多面的に情報を収集するため、異なる視点からの検索クエリを生成してください。
+
+【重要】記事のテーマに応じて、以下4種類のクエリを生成してください：
+
+1. **推進派・賛成派の意見を探すクエリ**
+   - この問題に対して前向き・賛成の立場を取る意見を探すためのキーワード
+   - 例: 「動物愛護法 改正 必要性」「ペット業界 規制強化 賛成」
+
+2. **反対派・慎重派の意見を探すクエリ**
+   - この問題に対して慎重・反対の立場を取る意見を探すためのキーワード
+   - 例: 「動物愛護法 改正 懸念」「ペット業界 規制 負担」
+
+3. **中立的な分析・解説を探すクエリ**
+   - 客観的な分析や専門家の解説を探すためのキーワード
+   - 例: 「動物愛護法 改正 影響分析」「ペット業界 現状 課題」
+
+4. **一次ソースを探すクエリ**
+   - 政府機関、法令、統計など公式情報を探すためのキーワード
+   - site:演算子を活用してください
+   - 例: 「動物愛護管理法 site:env.go.jp」「ペット統計 site:e-stat.go.jp」
 
 JSON Schema:
 {
-  "queries": string[],
-  "focus_points": string[] // 何を確認しようとしているか
+  "queries_pro": string,      // 推進派クエリ
+  "queries_con": string,      // 反対派クエリ
+  "queries_neutral": string,  // 中立クエリ
+  "queries_primary": string,  // 一次ソースクエリ
+  "focus_points": string[]    // 何を確認しようとしているか
 }
 `;
     const userPrompt = `Title: ${item.title}\nSnippet: ${item.snippet}`;
 
     try {
-      return this.geminiService.generateJson(
+      const result = this.geminiService.generateJson(
         Config.GEMINI.MODEL_GENERATION, // Proを使用
         systemPrompt,
         userPrompt
       );
+      
+      // レスポンス検証（フォールバック対策）
+      if (!result.queries_pro || !result.queries_con || !result.queries_neutral || !result.queries_primary) {
+        console.warn('Incomplete response from Gemini, using fallback.');
+        return this._getFallbackPlan(item);
+      }
+      
+      return result;
     } catch (e) {
-      console.warn('Research planning failed, using fallback.');
-      return { queries: [item.title], focus_points: [] };
+      console.warn('Research planning failed, using fallback.', e);
+      return this._getFallbackPlan(item);
     }
+  }
+
+  /**
+   * フォールバック用の調査計画生成
+   * @param {Object} item
+   * @returns {Object}
+   * @private
+   */
+  _getFallbackPlan(item) {
+    const baseKeyword = item.title.split(/[\s　]/)[0] || item.title;
+    return {
+      queries_pro: `${baseKeyword} 必要`,
+      queries_con: `${baseKeyword} 懸念`,
+      queries_neutral: `${baseKeyword} 分析`,
+      queries_primary: `${baseKeyword} site:go.jp`,
+      focus_points: ['基本情報の確認']
+    };
   }
 
   /**

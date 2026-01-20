@@ -16,8 +16,9 @@ Google スプレッドシート上で動作し、AI (Gemini) を使って情報�
 
 3.  **多面的深掘り調査 (Deep Research)** 🆕:
     - **一次ソース収集**: 政府機関プレスリリース、法令、統計データを直接取得
-    - **二次ソース収集**: ニュース記事の追加調査
+    - **多面的視点収集**: 推進派・反対派・中立の4視点から情報を収集し、偏向を防止
     - **信頼性評価**: 全記事を0-100点で自動評価（メディア信頼度 + Gemini判定）
+    - **ファクトチェック**: 元記事の数値を一次ソースと照合し、誤情報を自動検出
     - 情報を集約した **「専用スプレッドシート」** を自動生成
 
 4.  **テーマ案生成**: 複数の重要記事を組み合わせて、YouTubeやNoteで発信すべき企画テーマを提案
@@ -105,16 +106,19 @@ src/
 ├── services/
 │   ├── ProjectManager.gs   # プロジェクトスプシ管理
 │   ├── DeepResearchService.gs # 多面的深掘り調査
+│   ├── FactCheckService.gs # ファクトチェック機能
+│   ├── PrimarySourceService.gs # 一次ソース収集
 │   ├── SetupService.gs     # 初期セットアップ
 │   ├── FetchService.gs     # RSS収集
 │   ├── ScreeningService.gs # AIスクリーニング
-│   ├── EvidenceService.gs  # 単一記事調査 (旧)
 │   ├── TopicService.gs     # テーマ生成
 │   ├── StakeholderService.gs # ステークホルダー分析
 │   ├── ContentService.gs   # 台本生成
 │   ├── SourceDiscoveryService.gs # 収集先自動開拓
 │   └── _GeminiService.gs   # Gemini API連携
 └── utils/
+    ├── ReliabilityEvaluator.gs # 信頼性評価
+    └── TriggerManager.gs   # トリガー管理
 ```
 
 ## 📚 ドキュメント
@@ -126,7 +130,7 @@ src/
 - [Deep Research 機能強化計画](docs/deep_research_enhancement_plan.md)
 
 ### 開発進捗
-- [開発進捗レポート](docs/development_progress.md) - Phase 1-3 の実装完了状況と次回への引き継ぎ事項
+- [開発進捗レポート](docs/development_progress.md) - Phase 1-5 の実装完了状況と次回への引き継ぎ事項
 
 ### API・技術情報
 - [Gemini API 利用ガイド](docs/gemini_api_guide.md)
@@ -135,10 +139,22 @@ src/
 
 ## 🆕 最新アップデート（2026/01/21）
 
-### Phase 1-3: Deep Research 機能強化
+### Phase 1-5: Deep Research 機能強化完了 ✅
 
+#### Phase 1-3: 基盤機能
 1. **一次ソース収集**: 政府機関・法令・統計データを直接収集
 2. **ハイブリッド収集戦略**: ベースKW（トレンド）+ 政策KW（法律・政策）の2段階収集
 3. **信頼性評価エンジン**: メディア信頼度 + Gemini評価で0-100点自動スコアリング
+
+#### Phase 4: 多面的視点収集 🆕
+- **4種類の視点別クエリ生成**: 推進派・反対派・中立・一次ソース
+- **バイアス指標の自動設定**: 各記事に `pro`/`con`/`neutral` を付与
+- **偏向防止**: 賛成・反対両方の意見を確実に収集し、バランスの取れたコンテンツ生成を実現
+
+#### Phase 5: ファクトチェック機能 🆕
+- **数値・日付の自動抽出**: Geminiで元記事から検証すべきデータを抽出
+- **一次ソースと照合**: ±5%の許容範囲で数値を比較
+- **判定結果の可視化**: `verified`/`conflicting`/`unverified` を `04_FactCheck` シートに記録
+- **誤情報の自動検出**: 数値の誤りを検出し、情報の信頼性を大幅向上
 
 詳細は [開発進捗レポート](docs/development_progress.md) を参照してください。
