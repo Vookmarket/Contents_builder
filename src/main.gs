@@ -12,8 +12,9 @@ function runIntakeCycle() {
  */
 function runScreeningCycle() {
   console.log('Starting Screening Cycle...');
-  const gemini = new GeminiService();
-  // TODO: Implement Screening logic
+  const screeningService = new ScreeningService();
+  // 1回の実行で処理する件数上限
+  screeningService.processQueue(10);
 }
 
 /**
