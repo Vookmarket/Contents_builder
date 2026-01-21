@@ -28,10 +28,23 @@ class ProjectManager {
     console.log(`Creating project spreadsheet for topic: ${topic.title_working}`);
 
     // 1. フォルダ作成/取得
-    const folders = DriveApp.getFoldersByName(Config.DRIVE.ROOT_FOLDER_NAME);
+    // 現在のスプレッドシートと同じ階層に保存する
+    const activeSs = SpreadsheetApp.getActiveSpreadsheet();
+    const activeFile = DriveApp.getFileById(activeSs.getId());
+    const parents = activeFile.getParents();
+    let parentFolder;
+    if (parents.hasNext()) {
+      parentFolder = parents.next();
+    } else {
+      // 親がない（ルート）場合はルートを使用
+      parentFolder = DriveApp.getRootFolder();
+    }
+
+    // 親フォルダ内に出力用フォルダを探す
+    const folders = parentFolder.getFoldersByName(Config.DRIVE.ROOT_FOLDER_NAME);
     let rootFolder;
     if (folders.hasNext()) rootFolder = folders.next();
-    else rootFolder = DriveApp.createFolder(Config.DRIVE.ROOT_FOLDER_NAME);
+    else rootFolder = parentFolder.createFolder(Config.DRIVE.ROOT_FOLDER_NAME);
 
     const today = new Date().toISOString().slice(0, 10);
     const folderName = `${today}_${topic.title_working.substring(0, 20)}`; // 長すぎるとエラーになるかも

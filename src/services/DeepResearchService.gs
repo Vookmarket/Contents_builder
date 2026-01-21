@@ -5,6 +5,7 @@ class DeepResearchService {
     this.geminiService = new GeminiService();
     this.projectManager = new ProjectManager();
     this.primarySourceService = new PrimarySourceService();
+    this.timelineService = new TimelineService();
   }
 
   /**
@@ -32,7 +33,7 @@ class DeepResearchService {
         const projectUrl = this.projectManager.createProject(pseudoTopic);
         
         // トリガー登録（各アイテムを少しずつずらす）
-        const delay = delayMinutes + (index * 0.5); // 30秒ずつずらす
+        const delay = delayMinutes + (index * 2); // 2分ずつずらす
         TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', delay, pseudoTopic.topic_id);
         
         console.log(`  -> Scheduled in ${delay} minutes.`);
@@ -181,6 +182,10 @@ class DeepResearchService {
     console.log('  -> Step 6: Fact checking...');
     const factCheckService = new FactCheckService();
     factCheckService.verify(item, topicId);
+
+    // 10. 時系列分析実行 (Phase 6)
+    console.log('  -> Step 7: Analyzing timeline...');
+    this.timelineService.analyze(topicId, plan);
     
     // 視点別の集計をログ出力
     const stats = {
@@ -222,12 +227,18 @@ class DeepResearchService {
    - site:演算子を活用してください
    - 例: 「動物愛護管理法 site:env.go.jp」「ペット統計 site:e-stat.go.jp」
 
+5. **時系列・背景を探すクエリ**
+   - この問題の経緯、過去の法改正、歴史的背景を探すためのキーワード
+   - 過去1年以上の期間を検索対象とするため、汎用的なキーワードを含めてください
+   - 例: 「動物愛護法 改正 経緯」「ペット 規制 歴史」
+
 JSON Schema:
 {
   "queries_pro": string,      // 推進派クエリ
   "queries_con": string,      // 反対派クエリ
   "queries_neutral": string,  // 中立クエリ
   "queries_primary": string,  // 一次ソースクエリ
+  "queries_timeline": string, // 時系列クエリ
   "focus_points": string[]    // 何を確認しようとしているか
 }
 `;
@@ -241,7 +252,7 @@ JSON Schema:
       );
       
       // レスポンス検証（フォールバック対策）
-      if (!result.queries_pro || !result.queries_con || !result.queries_neutral || !result.queries_primary) {
+      if (!result.queries_pro || !result.queries_con || !result.queries_neutral || !result.queries_primary || !result.queries_timeline) {
         console.warn('Incomplete response from Gemini, using fallback.');
         return this._getFallbackPlan(item);
       }
@@ -266,6 +277,7 @@ JSON Schema:
       queries_con: `${baseKeyword} 懸念`,
       queries_neutral: `${baseKeyword} 分析`,
       queries_primary: `${baseKeyword} site:go.jp`,
+      queries_timeline: `${baseKeyword} 経緯 歴史`,
       focus_points: ['基本情報の確認']
     };
   }
