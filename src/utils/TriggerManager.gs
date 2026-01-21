@@ -9,6 +9,9 @@ class TriggerManager {
    * @param {string} topicId 処理対象のtopic_id
    */
   static createDelayedTriggerForTopic(functionName, delayMinutes, topicId) {
+    // 既存のトリガーがあれば削除（重複防止・ゴミ掃除）
+    this.cleanupTriggerData(topicId);
+
     const triggerTime = new Date(Date.now() + delayMinutes * 60 * 1000);
     
     // トリガー作成
