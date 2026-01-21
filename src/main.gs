@@ -62,27 +62,27 @@ function runDeepResearchForTopic(e) {
  * トピック生成処理（Promotedアイテムから）
  */
 function runTopicGenerationCycle() {
-  console.log('Starting Topic Generation Cycle...');
+  console.log('Starting Topic Generation Cycle (Deep Research Enhanced)...');
   const topicService = new TopicService();
-  topicService.generateTopicsFromPromotedItems();
+  topicService.generateTopicsFromDeepResearch(3);
 }
 
 /**
  * ステークホルダー分析（ドラフトトピックから）
  */
 function runStakeholderAnalysisCycle() {
-  console.log('Starting Stakeholder Analysis Cycle...');
+  console.log('Starting Stakeholder Analysis Cycle (Deep Research Enhanced)...');
   const stakeholderService = new StakeholderService();
-  stakeholderService.analyzeStakeholdersForDraftTopics();
+  stakeholderService.analyzeStakeholdersFromDeepResearch(3);
 }
 
 /**
  * コンテンツ生成処理（トピックから台本生成）
  */
 function runContentGenerationCycle() {
-  console.log('Starting Content Generation Cycle...');
+  console.log('Starting Content Generation Cycle (Deep Research Enhanced)...');
   const contentService = new ContentService();
-  contentService.generateContentsForPendingTopics();
+  contentService.generateContentFromDeepResearch(3);
 }
 
 /**
