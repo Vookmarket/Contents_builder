@@ -6,6 +6,7 @@ class DeepResearchService {
     this.projectManager = new ProjectManager();
     this.primarySourceService = new PrimarySourceService();
     this.timelineService = new TimelineService();
+    this.outputsRepo = new OutputsRepo();
   }
 
   /**
@@ -30,7 +31,7 @@ class DeepResearchService {
           angle: 'Auto-Research',
           target_media: '[]'
         };
-        const projectUrl = this.projectManager.createProject(pseudoTopic);
+        this.projectManager.createProject(pseudoTopic);
         
         // トリガー登録（各アイテムを少しずつずらす）
         const delay = delayMinutes + (index * 2); // 2分ずつずらす
@@ -48,54 +49,74 @@ class DeepResearchService {
 
   /**
    * 単一トピックに対するDeep Researchを実行（トリガーから呼ばれる・排他制御付き）
+   * ステップ実行パターン (Step 1 -> Step 2 -> Step 3)
    * @param {string} topicId
    */
   static runForTopic(topicId) {
     const lock = LockService.getScriptLock();
     const outputsRepo = new OutputsRepo();
+    const service = new DeepResearchService();
     
     try {
-      // ロック取得試行（30秒まで待機）
       if (!lock.tryLock(30000)) {
         console.warn(`[Triggered] Lock acquisition failed for ${topicId}. Skipping.`);
         return;
       }
       
-      // ステータス確認
       const currentStatus = outputsRepo.getResearchStatus(topicId);
-      if (currentStatus !== 'pending') {
-        console.log(`[Triggered] Topic ${topicId} is already ${currentStatus}. Skipping.`);
+      console.log(`[Triggered] Topic ${topicId} status: ${currentStatus}`);
+
+      // ステップ分岐
+      if (currentStatus === 'pending') {
+        // Step 1: Collection
+        outputsRepo.updateResearchStatus(topicId, 'processing_collected'); // 先に更新してロック解放
         lock.releaseLock();
-        return;
-      }
-      
-      // ステータスを processing に変更
-      outputsRepo.updateResearchStatus(topicId, 'processing');
-      lock.releaseLock(); // 早期解放（他のトピックを処理可能に）
-      
-      console.log(`[Triggered] Starting Deep Research for topic: ${topicId}`);
-      
-      const service = new DeepResearchService();
-      const intakeRepo = new IntakeQueueRepo();
-      const item = intakeRepo.getAll().find(i => i.item_id === topicId);
-      
-      if (!item) {
-        console.error(`Item not found: ${topicId}`);
-        outputsRepo.updateResearchStatus(topicId, 'failed');
+        
+        console.log(`[Step 1] Starting Collection for ${topicId}`);
+        service.executeStep1_Collection(topicId);
+        
+        // 次のステップを予約
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1] Completed. Next step scheduled.`);
+
+      } else if (currentStatus === 'processing_collected') {
+        // Step 2: Evaluation
+        outputsRepo.updateResearchStatus(topicId, 'processing_evaluated');
+        lock.releaseLock();
+
+        console.log(`[Step 2] Starting Evaluation for ${topicId}`);
+        service.executeStep2_Evaluation(topicId);
+        
+        // 次のステップを予約
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 2] Completed. Next step scheduled.`);
+
+      } else if (currentStatus === 'processing_evaluated') {
+        // Step 3: Analysis
+        outputsRepo.updateResearchStatus(topicId, 'processing_analyzing'); // 仮ステータス
+        lock.releaseLock();
+
+        console.log(`[Step 3] Starting Analysis for ${topicId}`);
+        service.executeStep3_Analysis(topicId);
+        
+        // 完了
+        outputsRepo.updateResearchStatus(topicId, 'completed');
         TriggerManager.cleanupTriggerData(topicId);
-        return;
+        console.log(`[Step 3] Completed. All Done.`);
+
+      } else if (currentStatus === 'completed') {
+        console.log('Already completed.');
+        lock.releaseLock();
+        TriggerManager.cleanupTriggerData(topicId);
+      } else {
+        console.log(`Unknown or processing status: ${currentStatus}`);
+        lock.releaseLock();
       }
-      
-      // 調査実行
-      service.conductResearch(item, topicId);
-      
-      // 完了
-      outputsRepo.updateResearchStatus(topicId, 'completed');
-      TriggerManager.cleanupTriggerData(topicId);
-      console.log(`[Triggered] Deep Research completed for: ${topicId}`);
       
     } catch (e) {
       console.error(`[Triggered] Error in deep research for ${topicId}:`, e);
+      // エラー時は failed にせず、再試行できるようにそのままにするか、あるいは failed にするか要検討
+      // 今回は failed にしてループを防ぐ
       outputsRepo.updateResearchStatus(topicId, 'failed');
       TriggerManager.cleanupTriggerData(topicId);
       if (lock.hasLock()) lock.releaseLock();
@@ -103,13 +124,16 @@ class DeepResearchService {
   }
 
   /**
-   * 1つのアイテムに対するリサーチ実行（Phase 4: 多面的視点対応版）
-   * @param {Object} item
-   * @param {string} topicId
+   * Step 1: 情報収集と保存
+   * @param {string} topicId 
    */
-  conductResearch(item, topicId) {
-    // 1. 一次ソースの収集（既存の一次ソース収集サービス）
-    console.log('  -> Step 1: Collecting primary sources...');
+  executeStep1_Collection(topicId) {
+    const intakeRepo = new IntakeQueueRepo();
+    const item = intakeRepo.getAll().find(i => i.item_id === topicId);
+    if (!item) throw new Error(`Item not found: ${topicId}`);
+
+    // 1. 一次ソースの収集
+    console.log('  -> Step 1a: Collecting primary sources...');
     const primaryQueries = this.primarySourceService.generatePrimaryQueries(item);
     const primarySources = [];
     primaryQueries.forEach(query => {
@@ -117,91 +141,115 @@ class DeepResearchService {
       primarySources.push(...sources);
       Utilities.sleep(1000);
     });
-    console.log(`  -> Collected ${primarySources.length} primary sources.`);
 
-    // 2. 多面的視点での調査計画生成
-    console.log('  -> Step 2: Planning multi-perspective research...');
+    // 2. 調査計画生成
+    console.log('  -> Step 1b: Planning multi-perspective research...');
     const plan = this.planResearch(item);
-    console.log('  -> Generated queries for 4 perspectives (pro/con/neutral/primary).');
+    
+    // 3-6. 記事収集
+    const fetchAndTag = (queries, type, bias) => {
+        const articles = this.fetchService.fetchByQuery(queries, 3);
+        articles.forEach(a => {
+            a.source_type = type;
+            a.bias_indicator = bias;
+            a.reliability_score = ''; // 未評価
+        });
+        return articles;
+    };
 
-    // 3. 推進派の意見収集
-    console.log('  -> Step 3a: Collecting pro-perspective articles...');
-    const proArticles = this.fetchService.fetchByQuery(plan.queries_pro, 3);
-    proArticles.forEach(a => {
-      a.source_type = 'news';
-      a.bias_indicator = 'pro';
-    });
-    console.log(`  -> Collected ${proArticles.length} pro-perspective articles.`);
+    const proArticles = fetchAndTag(plan.queries_pro, 'news', 'pro');
     Utilities.sleep(1000);
-
-    // 4. 反対派の意見収集
-    console.log('  -> Step 3b: Collecting con-perspective articles...');
-    const conArticles = this.fetchService.fetchByQuery(plan.queries_con, 3);
-    conArticles.forEach(a => {
-      a.source_type = 'news';
-      a.bias_indicator = 'con';
-    });
-    console.log(`  -> Collected ${conArticles.length} con-perspective articles.`);
+    const conArticles = fetchAndTag(plan.queries_con, 'news', 'con');
     Utilities.sleep(1000);
-
-    // 5. 中立的分析の収集
-    console.log('  -> Step 3c: Collecting neutral-perspective articles...');
-    const neutralArticles = this.fetchService.fetchByQuery(plan.queries_neutral, 3);
-    neutralArticles.forEach(a => {
-      a.source_type = 'news';
-      a.bias_indicator = 'neutral';
-    });
-    console.log(`  -> Collected ${neutralArticles.length} neutral-perspective articles.`);
+    const neutralArticles = fetchAndTag(plan.queries_neutral, 'news', 'neutral');
     Utilities.sleep(1000);
+    const additionalPrimary = fetchAndTag(plan.queries_primary, 'official', 'neutral');
 
-    // 6. 追加の一次ソース収集（計画生成されたクエリから）
-    console.log('  -> Step 3d: Collecting additional primary sources...');
-    const additionalPrimary = this.fetchService.fetchByQuery(plan.queries_primary, 3);
-    additionalPrimary.forEach(a => {
-      a.source_type = a.source_type || 'official'; // 既存のsource_typeを維持、なければofficial
-      a.bias_indicator = 'neutral'; // 一次ソースは中立
-    });
-    console.log(`  -> Collected ${additionalPrimary.length} additional primary sources.`);
-    Utilities.sleep(1000);
-
-    // 7. 信頼性評価
-    console.log('  -> Step 4: Evaluating reliability...');
-    const evaluator = new ReliabilityEvaluator();
     const allArticles = [...primarySources, ...proArticles, ...conArticles, ...neutralArticles, ...additionalPrimary];
-    allArticles.forEach(article => {
-      article.reliability_score = evaluator.evaluate(article);
-      Utilities.sleep(500); // Gemini API レート制限対策
-    });
-    console.log(`  -> Reliability evaluation completed.`);
-
-    // 8. プロジェクトシートへの保存
-    console.log('  -> Step 5: Saving to project sheet...');
+    
+    // 保存 (reliability_score は空のまま)
+    console.log(`  -> Saving ${allArticles.length} articles to sheet...`);
     this.saveToProjectSheet(topicId, allArticles);
     
-    // 9. ファクトチェック実行
-    console.log('  -> Step 6: Fact checking...');
-    const factCheckService = new FactCheckService();
-    factCheckService.verify(item, topicId);
-
-    // 10. 時系列分析実行 (Phase 6)
-    console.log('  -> Step 7: Analyzing timeline...');
-    this.timelineService.analyze(topicId, plan);
-    
-    // 視点別の集計をログ出力
-    const stats = {
-      total: allArticles.length,
-      pro: proArticles.length,
-      con: conArticles.length,
-      neutral: neutralArticles.length,
-      primary: primarySources.length + additionalPrimary.length
-    };
-    console.log(`  -> Deep Research Completed: Total=${stats.total}, Pro=${stats.pro}, Con=${stats.con}, Neutral=${stats.neutral}, Primary=${stats.primary}`);
+    // Plan情報を一時保存（Step 3で使うためPropertiesServiceなどを使う手もあるが、今回は再生成か、シートから読むか）
+    // Timeline分析のためにPlanが必要だが、Step 3で再生成しても良いし、IntakeQueueのnotesなどに保存しても良い。
+    // 今回はシンプルに、Step 3でも planResearch を呼ぶ（冪等性が高いのでOK）
   }
 
   /**
-   * 調査計画の生成（Phase 4: 多面的視点対応）
+   * Step 2: 信頼性評価
+   * @param {string} topicId 
+   */
+  executeStep2_Evaluation(topicId) {
+    const sheet = this.projectManager.getProjectSheet(topicId, '01_Research');
+    if (!sheet) throw new Error('Research sheet not found');
+
+    const rows = sheet.getDataRange().getValues();
+    if (rows.length <= 1) {
+      console.log('No articles to evaluate.');
+      return;
+    }
+
+    const headers = rows[0];
+    const reliabilityIndex = headers.indexOf('reliability_score');
+    const urlIndex = headers.indexOf('source_url');
+    const titleIndex = headers.indexOf('title');
+    const snippetIndex = headers.indexOf('summary');
+
+    if (reliabilityIndex === -1) throw new Error('Column reliability_score not found');
+
+    const evaluator = new ReliabilityEvaluator();
+    
+    // ヘッダーを除く行を走査
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const score = row[reliabilityIndex];
+      
+      // スコアが空、または0の場合に評価実行
+      if (score === '' || score === 0 || score === '0') {
+        const article = {
+          url: row[urlIndex],
+          title: row[titleIndex],
+          snippet: row[snippetIndex]
+        };
+        
+        try {
+          console.log(`  -> Evaluating: ${article.title.substring(0, 20)}...`);
+          const newScore = evaluator.evaluate(article);
+          sheet.getRange(i + 1, reliabilityIndex + 1).setValue(newScore);
+          Utilities.sleep(800); // レート制限対策
+        } catch (e) {
+          console.error(`Failed to evaluate row ${i+1}`, e);
+        }
+      }
+    }
+  }
+
+  /**
+   * Step 3: 分析（ファクトチェック・時系列）
+   * @param {string} topicId 
+   */
+  executeStep3_Analysis(topicId) {
+    const intakeRepo = new IntakeQueueRepo();
+    const item = intakeRepo.getAll().find(i => i.item_id === topicId);
+    if (!item) throw new Error(`Item not found: ${topicId}`);
+
+    // ファクトチェック
+    console.log('  -> Step 3a: Fact checking...');
+    const factCheckService = new FactCheckService();
+    factCheckService.verify(item, topicId);
+
+    // 時系列分析
+    console.log('  -> Step 3b: Analyzing timeline...');
+    // Planを再生成（軽量なのでOK）
+    const plan = this.planResearch(item); 
+    this.timelineService.analyze(topicId, plan);
+  }
+
+  /**
+   * 調査計画の生成
    * @param {Object} item
-   * @returns {Object} { queries_pro: string, queries_con: string, queries_neutral: string, queries_primary: string, focus_points: string[] }
+   * @returns {Object} 
    */
   planResearch(item) {
     const systemPrompt = `
@@ -246,17 +294,14 @@ JSON Schema:
 
     try {
       const result = this.geminiService.generateJson(
-        Config.GEMINI.MODEL_GENERATION, // Proを使用
+        Config.GEMINI.MODEL_GENERATION, 
         systemPrompt,
         userPrompt
       );
       
-      // レスポンス検証（フォールバック対策）
-      if (!result.queries_pro || !result.queries_con || !result.queries_neutral || !result.queries_primary || !result.queries_timeline) {
-        console.warn('Incomplete response from Gemini, using fallback.');
+      if (!result.queries_pro || !result.queries_con) {
         return this._getFallbackPlan(item);
       }
-      
       return result;
     } catch (e) {
       console.warn('Research planning failed, using fallback.', e);
@@ -266,8 +311,6 @@ JSON Schema:
 
   /**
    * フォールバック用の調査計画生成
-   * @param {Object} item
-   * @returns {Object}
    * @private
    */
   _getFallbackPlan(item) {
@@ -283,7 +326,7 @@ JSON Schema:
   }
 
   /**
-   * プロジェクトシートへの保存（拡張版）
+   * プロジェクトシートへの保存
    * @param {string} topicId
    * @param {Object[]} articles
    */
@@ -294,19 +337,18 @@ JSON Schema:
       return;
     }
 
-    // 列構造: source_url, title, published_at, summary, source_type, 
-    //         reliability_score, bias_indicator, fact_check_status, stakeholder, key_claims, notes
+    // 列構造に合わせる
     const rows = articles.map(a => [
       a.url,
       a.title,
       a.published_at || new Date().toISOString(),
       a.snippet,
       a.source_type || 'news',
-      a.reliability_score || 0,
+      a.reliability_score || '', // 空文字で保存
       a.bias_indicator || 'unknown',
       a.fact_check_status || 'unverified',
       a.stakeholder || '',
-      '', // key_claims (未抽出)
+      '', 
       'Auto-collected'
     ]);
 
