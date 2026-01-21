@@ -4,11 +4,14 @@
 「1トピック = 1スプレッドシート」の原則に基づき、情報の収集・分析・生成プロセスを単一のブック内で完結させる。これにより、情報の可視性と編集性を高め、AIと人間の協調を促進する。
 
 ## 2. ディレクトリ構造 (Google Drive)
+マスタースプレッドシート（Contents Builder）と同じフォルダ内に作成される。
+
 ```
-ContentsBuilder_Output/
-  ├── YYYY-MM-DD_Topic-Slug/
-  │   └── Project_TopicTitle (Spreadsheet)
-  └── ...
+[Master Spreadsheet Folder]/
+  └── ContentsBuilder_Output/
+        ├── YYYY-MM-DD_Topic-Slug/
+        │   └── Project_TopicTitle (Spreadsheet)
+        └── ...
 ```
 
 ## 3. スプレッドシート構成 (Project Spreadsheet)
@@ -26,17 +29,24 @@ ContentsBuilder_Output/
   - `title`: タイトル
   - `published_at`: 公開日
   - `summary`: 要約
+  - `source_type`: 'news'/'official'/'law'/'statistics'
+  - `reliability_score`: 0-100のスコア
+  - `bias_indicator`: 'pro'/'con'/'neutral'
+  - `fact_check_status`: 'verified'/'conflicting'/'unverified'
+  - `stakeholder`: 関連ステークホルダー
   - `key_claims`: 抽出された主張（箇条書き）
-  - `reliability`: 信頼度 (High/Med/Low)
   - `notes`: メモ
 
 ### 3.3 02_Analysis (分析・統合)
-調査結果の分析。
-- **Columns**:
-  - `category`: "Fact Check", "Stakeholder", "Timeline", "Issue"
-  - `item`: 項目名（例: "動物愛護法改正の経緯"）
-  - `content`: 分析内容詳細
-  - `sources`: 根拠としたSource URL (CSV)
+調査結果の分析（※以下の専用シートに機能移行済み）。
+
+### 3.4 04_FactCheck (ファクトチェック)
+元記事の数値・日付と一次ソースの照合。
+- **Columns**: `claim_text`, `claim_value`, `source_value`, `match_status`, `source_url`
+
+### 3.5 05_Timeline (時系列分析)
+トピックの背景・経緯。
+- **Columns**: `date`, `event`, `source_url`, `category`
 
 ### 3.4 03_Drafts (コンテンツ案)
 生成されたコンテンツ。

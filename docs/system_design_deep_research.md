@@ -6,25 +6,27 @@
 ## 2. アーキテクチャ変更点
 
 ### 2.1 新規サービスの導入
-既存の `EvidenceService` の上に、統括的な調査を行う `DeepResearchService` を新設する。
+既存の `EvidenceService` の上に、統括的な調査を行う `DeepResearchService` を新設し、専門的なサブサービスと連携させる。
 
 - **`DeepResearchService`**: 調査全体の指揮・統合を行う。
-- **`EvidenceService`** (既存): 個別の記事/URLからの情報抽出に特化させる（部品化）。
-- **`FetchService`** (拡張): 登録済みRSSだけでなく、動的に生成されたクエリでの一時的な検索・収集に対応させる。
+- **`PrimarySourceService`**: 政府機関・法令・統計データの直接収集。
+- **`TimelineService`**: 過去記事検索と法改正履歴の収集・分析。
+- **`FactCheckService`**: 数値・日付の整合性チェック。
+- **`FetchService`** (拡張): 動的クエリによる一時的な検索・収集。
 
 ### 2.2 データフローの刷新
 
 ```mermaid
 graph TD
     A[Promoted Item] --> B[DeepResearchService]
-    B -->|1. 初期分析| C[Gemini: 調査計画生成]
-    C -->|問い・検索語| D[FetchService (Search)]
-    D -->|関連RSS検索| E[追加記事リスト]
-    E -->|2. 各記事解析| F[EvidenceService]
-    F -->|Claim/Evidence| G[EvidenceIndex]
-    G -->|3. 統合・検証| H[Gemini: 整合性チェック]
-    H -->|レポート生成| I[01_research_report.md]
-    I -->|入力| J[ContentService (台本作成)]
+    B -->|1. 計画| C[Gemini: 多面的視点クエリ生成]
+    C --> D[PrimarySourceService]
+    C --> E[FetchService (News)]
+    D & E -->|収集結果| F[ReliabilityEvaluator]
+    F -->|信頼性評価| G[Project Spreadsheet]
+    G -->|2. 検証| H[FactCheckService]
+    H -->|3. 分析| I[TimelineService]
+    G & H & I -->|統合データ| J[Topic/Stakeholder/Content Service]
 ```
 
 ## 3. 実装詳細
@@ -46,12 +48,10 @@ Geminiに対し、元記事を入力として以下の情報を生成させる�
 - **Completeness**: 不足していた背景情報が補完されたか。
 
 ### 3.4 成果物
-Driveに `01_research_report.md` を生成する。
-- **Summary**: テーマの概要。
-- **Fact Check**: 検証結果（一致/不一致/保留）。
-- **Timeline**: 関連する時系列。
-- **Perspectives**: 主要な論点と各ステークホルダーの主張。
-- **References**: 参照した全ての一次ソース・記事リンク。
+プロジェクト専用スプレッドシートに構造化データを保存する。
+- **01_Research**: 全記事リスト（信頼性スコア、バイアス判定付き）。
+- **04_FactCheck**: 数値・日付の検証結果。
+- **05_Timeline**: 時系列イベントリスト。
 
 ## 4. 既存コードへの影響
 
