@@ -32,6 +32,20 @@ class DeepResearchService {
           target_media: '[]'
         };
         this.projectManager.createProject(pseudoTopic);
+
+        // ステータス初期化 (OutputsRepoにレコードがないとトリガー実行時にステータス不明になるため)
+        const currentStatus = this.outputsRepo.getResearchStatus(pseudoTopic.topic_id);
+        if (!currentStatus) {
+          this.outputsRepo.add({
+            topic_id: pseudoTopic.topic_id,
+            research_status: 'pending',
+            created_at: new Date().toISOString()
+          });
+          console.log(`  -> Initialized research status to 'pending'`);
+        } else {
+          console.log(`  -> Research status already exists: ${currentStatus}`);
+          // 既存が failed の場合はリトライとして pending に戻すことも検討可能だが、今回はそのまま
+        }
         
         // トリガー登録（各アイテムを少しずつずらす）
         const delay = delayMinutes + (index * 2); // 2分ずつずらす
