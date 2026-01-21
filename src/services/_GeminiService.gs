@@ -16,7 +16,7 @@ class GeminiService {
    * @param {boolean} jsonMode JSONモードを有効にするか
    * @returns {string} 生成されたテキスト
    */
-  generateContent(model, systemInstruction, prompt, jsonMode = false) {
+  generateContent(model, systemInstruction, prompt, jsonMode = false, useSearch = false) {
     const url = `${this.baseUrl}/${model}:generateContent?key=${this.apiKey}`;
     
     const payload = {
@@ -37,6 +37,11 @@ class GeminiService {
 
     if (jsonMode) {
       payload.generationConfig.responseMimeType = 'application/json';
+    }
+
+    if (useSearch) {
+      // Google Search Grounding を有効化
+      payload.tools = [{ google_search: {} }];
     }
 
     const options = {
@@ -77,8 +82,8 @@ class GeminiService {
    * @param {string} prompt
    * @returns {T}
    */
-  generateJson(model, systemInstruction, prompt) {
-    const jsonString = this.generateContent(model, systemInstruction, prompt, true);
+  generateJson(model, systemInstruction, prompt, useSearch = false) {
+    const jsonString = this.generateContent(model, systemInstruction, prompt, true, useSearch);
     try {
         return JSON.parse(jsonString);
     } catch (e) {
