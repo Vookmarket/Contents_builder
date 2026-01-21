@@ -145,8 +145,12 @@ class FetchService {
    * @returns {Object[]}
    */
   fetchByQuery(query, limit = 10, timeRange = '1y') {
+    // クエリのサニタイズ: カンマを OR に置換してヒット率を上げる
+    // 例: "A, B, C" -> "A OR B OR C"
+    const sanitizedQuery = query.replace(/[,、]/g, ' OR ');
+
     // Google News RSS URL生成
-    const encodedKw = encodeURIComponent(query);
+    const encodedKw = encodeURIComponent(sanitizedQuery);
     const url = `https://news.google.com/rss/search?q=${encodedKw}+when:${timeRange}&hl=ja&gl=JP&ceid=JP:ja`;
     
     const tempSource = {
