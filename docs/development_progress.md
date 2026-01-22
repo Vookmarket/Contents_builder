@@ -109,30 +109,55 @@ RSS検索からGemini Grounding (Google Search) への移行により、検索�
 
 ## 最新の改善 (2026/01/22)
 
-### Step 1aの完全分割 + クリーンアップ機能 ✅
+### Step 1aのサイトグループ分割 + タイムアウト制御 ✅
 
-#### 問題
-Step 1a（一次ソース収集）で、複数の政府サイトと法令・統計サイトを順次検索するため、6分の実行時間制限に到達する問題が発生していました。
+#### 問題（v1）
+Step 1a（一次ソース収集）で、1つのクエリで6サイト（政府4 + 法令1 + 統計1）を順次検索するため、Gemini Grounding の応答時間が長い場合に6分の実行時間制限に到達していました。
 
-#### 解決策
-Step 1aを以下の4ステップに細分化：
+**実測**: 1クエリで最大6分（`12:58:02 → 13:04:00`）
 
-1. **Step 1a-0 (planning)**: クエリ生成のみ
-   - Geminiで一次ソース検索クエリを3つ生成
-   - Propertiesに保存
+#### 解決策（v2）
+**サイトグループ単位での分割 + 40秒タイムアウト制御**
 
-2. **Step 1a-1 (collecting_query_1)**: 1つ目のクエリで収集
-   - クエリ0で政府機関・法令・統計を収集
-   - プロジェクトシートに保存
+##### 新しいステップ構成（13ステップ）
+```
+Step 1a-0 (planning): クエリ生成
 
-3. **Step 1a-2 (collecting_query_2)**: 2つ目のクエリで収集
-   - クエリ1で収集・保存
+【クエリ1】
+Step 1a-1-a (collecting_q1_gov1): 環境省・農水省
+Step 1a-1-b (collecting_q1_gov2): 厚労省・内閣官房  
+Step 1a-1-c (collecting_q1_law): 法令（e-Gov）
+Step 1a-1-d (collecting_q1_stat): 統計（e-Stat）
 
-4. **Step 1a-3 (collecting_query_3)**: 3つ目のクエリで収集
-   - クエリ2で収集・保存
-   - **Propertiesクリーンアップ実行**
+【クエリ2】
+Step 1a-2-a (collecting_q2_gov1): 環境省・農水省
+Step 1a-2-b (collecting_q2_gov2): 厚労省・内閣官房
+Step 1a-2-c (collecting_q2_law): 法令
+Step 1a-2-d (collecting_q2_stat): 統計
 
-各ステップは1-2分で完了するため、確実に6分制限を回避できます。
+【クエリ3】
+Step 1a-3-a (collecting_q3_gov1): 環境省・農水省
+Step 1a-3-b (collecting_q3_gov2): 厚労省・内閣官房
+Step 1a-3-c (collecting_q3_law): 法令
+Step 1a-3-d (collecting_q3_stat): 統計 + クリーンアップ
+```
+
+##### タイムアウト制御
+- **各API呼び出し**: 40秒タイムアウト
+- **各ステップの実行時間**: 最大 2サイト × 40秒 = **80秒**
+- **安全マージン**: 6分 - 80秒 = **4分40秒の余裕**
+
+##### 実装内容
+**PrimarySourceService.gs**
+- `collectGovernmentReleasesGroup1/2()`: サイトグループ別収集
+- `collectFromSites()`: タイムアウト制御付き収集
+- `fetchWithTimeout()`: 40秒タイムアウト制御
+
+**DeepResearchService.gs**
+- 13ステップへの細分化
+- `executeStep1a_N_X_CollectSiteGroup()`: サイトグループ別実行
+
+各ステップは1-2分で確実に完了するため、**6分制限を完全回避**できます。
 
 #### 追加機能：自動クリーンアップ
 
@@ -177,4 +202,5 @@ Step 1aを以下の4ステップに細分化：
 | 2026/01/21 | 安定化 | 6ce4022, 3d68b12, 51fa05b | ステップ実行化・ステータス初期化 |
 | 2026/01/21 | 改善 | 391d8a6, 9fa23f2 | 検索クエリ最適化・Gemini Grounding導入 |
 | 2026/01/22 | 最適化 | 6ea05cd | Step 1を1a/1bに細分化（タイムアウト完全対策） |
-| 2026/01/22 | 最適化v2 | - | **Step 1aをさらに細分化（クエリ単位実行）** |
+| 2026/01/22 | 最適化v2 | - | Step 1aをクエリ単位で細分化 |
+| 2026/01/22 | 最適化v3 | - | **Step 1aをサイトグループ単位で細分化 + タイムアウト制御** |

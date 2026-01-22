@@ -31,34 +31,61 @@ class PrimarySourceService {
   }
 
   /**
-   * 政府機関のプレスリリースを収集
+   * 政府機関のプレスリリースを収集（グループ1: 環境省・農水省）
    * @param {string} query
    * @returns {Object[]}
    */
-  collectGovernmentReleases(query) {
+  collectGovernmentReleasesGroup1(query) {
+    return this.collectFromSites(query, ['env.go.jp', 'maff.go.jp'], 'official', 95);
+  }
+
+  /**
+   * 政府機関のプレスリリースを収集（グループ2: 厚労省・内閣官房）
+   * @param {string} query
+   * @returns {Object[]}
+   */
+  collectGovernmentReleasesGroup2(query) {
+    return this.collectFromSites(query, ['mhlw.go.jp', 'cas.go.jp'], 'official', 95);
+  }
+
+  /**
+   * 指定サイトからの収集（タイムアウト制御付き）
+   * @param {string} query
+   * @param {string[]} sites
+   * @param {string} sourceType
+   * @param {number} reliabilityScore
+   * @returns {Object[]}
+   */
+  collectFromSites(query, sites, sourceType, reliabilityScore) {
     const results = [];
-    const sites = [
-      'env.go.jp',        // 環境省
-      'maff.go.jp',       // 農林水産省
-      'mhlw.go.jp',       // 厚生労働省
-      'cas.go.jp'         // 内閣官房
-    ];
+    const TIMEOUT_MS = 40000; // 40秒タイムアウト
 
     sites.forEach(site => {
+      const startTime = Date.now();
+      
       try {
         const siteQuery = `site:${site} プレスリリース ${query}`;
-        const articles = this.fetchService.fetchByQuery(siteQuery, 2); // 各サイト2件まで
+        console.log(`  -> Fetching from ${site}...`);
+        
+        const articles = this.fetchWithTimeout(siteQuery, 2, TIMEOUT_MS);
         
         articles.forEach(article => {
-          article.source_type = 'official';
-          article.reliability_score = 95; // 政府機関は高信頼
+          article.source_type = sourceType;
+          article.reliability_score = reliabilityScore;
           article.bias_indicator = 'neutral';
         });
         
         results.push(...articles);
-        Utilities.sleep(1000); // レート制限対策
+        console.log(`     Found ${articles.length} articles (${Date.now() - startTime}ms)`);
+        
+        Utilities.sleep(500); // レート制限対策（短縮）
       } catch (e) {
-        console.warn(`Failed to fetch from ${site}:`, e);
+        const elapsed = Date.now() - startTime;
+        if (elapsed >= TIMEOUT_MS) {
+          console.warn(`Timeout fetching from ${site} (${elapsed}ms)`);
+        } else {
+          console.warn(`Failed to fetch from ${site}:`, e);
+        }
       }
     });
 
@@ -66,45 +93,95 @@ class PrimarySourceService {
   }
 
   /**
-   * 法令情報を収集
+   * タイムアウト制御付きfetch
    * @param {string} query
+   * @param {number} limit
+   * @param {number} timeoutMs
    * @returns {Object[]}
    */
-  collectLegalInfo(query) {
-    const results = [];
+  fetchWithTimeout(query, limit, timeoutMs) {
+    const startTime = Date.now();
     
     try {
-      // e-Gov法令検索
-      const legalQuery = `site:elaws.e-gov.go.jp ${query}`;
-      const articles = this.fetchService.fetchByQuery(legalQuery, 3);
+      const articles = this.fetchService.fetchByQuery(query, limit);
       
-      articles.forEach(article => {
-        article.source_type = 'law';
-        article.reliability_score = 100; // 法令は最高信頼
-        article.bias_indicator = 'neutral';
-        article.snippet = this.extractLegalSummary(article);
-      });
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= timeoutMs) {
+        console.warn(`Query took ${elapsed}ms (>= ${timeoutMs}ms timeout)`);
+        return []; // タイムアウト時は空配列
+      }
       
-      results.push(...articles);
+      return articles;
     } catch (e) {
-      console.warn('Failed to fetch legal info:', e);
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= timeoutMs) {
+        console.warn(`Query timeout: ${elapsed}ms`);
+        return [];
+      }
+      throw e;
     }
+  }
 
+  /**
+   * 政府機関のプレスリリースを収集（旧メソッド：後方互換性のため残す）
+   * @deprecated Use collectGovernmentReleasesGroup1/Group2 instead
+   */
+  collectGovernmentReleases(query) {
+    const results = [];
+    results.push(...this.collectGovernmentReleasesGroup1(query));
+    results.push(...this.collectGovernmentReleasesGroup2(query));
     return results;
   }
 
   /**
-   * 統計データを収集
+   * 法令情報を収集（タイムアウト制御付き）
+   * @param {string} query
+   * @returns {Object[]}
+   */
+  collectLegalInfo(query) {
+    const startTime = Date.now();
+    const TIMEOUT_MS = 40000;
+    
+    try {
+      const legalQuery = `site:elaws.e-gov.go.jp ${query}`;
+      console.log(`  -> Fetching legal info...`);
+      
+      const articles = this.fetchWithTimeout(legalQuery, 3, TIMEOUT_MS);
+      
+      articles.forEach(article => {
+        article.source_type = 'law';
+        article.reliability_score = 100;
+        article.bias_indicator = 'neutral';
+        article.snippet = this.extractLegalSummary(article);
+      });
+      
+      console.log(`     Found ${articles.length} legal docs (${Date.now() - startTime}ms)`);
+      return articles;
+    } catch (e) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= TIMEOUT_MS) {
+        console.warn(`Legal info timeout: ${elapsed}ms`);
+      } else {
+        console.warn('Failed to fetch legal info:', e);
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 統計データを収集（タイムアウト制御付き）
    * @param {string} query
    * @returns {Object[]}
    */
   collectStatistics(query) {
-    const results = [];
+    const startTime = Date.now();
+    const TIMEOUT_MS = 40000;
     
     try {
-      // e-Stat（政府統計ポータル）
       const statQuery = `site:e-stat.go.jp ${query}`;
-      const articles = this.fetchService.fetchByQuery(statQuery, 2);
+      console.log(`  -> Fetching statistics...`);
+      
+      const articles = this.fetchWithTimeout(statQuery, 2, TIMEOUT_MS);
       
       articles.forEach(article => {
         article.source_type = 'statistics';
@@ -112,12 +189,17 @@ class PrimarySourceService {
         article.bias_indicator = 'neutral';
       });
       
-      results.push(...articles);
+      console.log(`     Found ${articles.length} statistics (${Date.now() - startTime}ms)`);
+      return articles;
     } catch (e) {
-      console.warn('Failed to fetch statistics:', e);
+      const elapsed = Date.now() - startTime;
+      if (elapsed >= TIMEOUT_MS) {
+        console.warn(`Statistics timeout: ${elapsed}ms`);
+      } else {
+        console.warn('Failed to fetch statistics:', e);
+      }
+      return [];
     }
-
-    return results;
   }
 
   /**

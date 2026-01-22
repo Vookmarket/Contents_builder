@@ -94,45 +94,141 @@ class DeepResearchService {
         console.log(`[Step 1a-0] Completed. Next step scheduled.`);
 
       } else if (currentStatus === 'planning') {
-        // Step 1a-1: Collect Query 0
-        outputsRepo.updateResearchStatus(topicId, 'collecting_query_1');
+        // Step 1a-1-a: Query 0 × Gov Group 1
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q1_gov1');
         lock.releaseLock();
         
-        console.log(`[Step 1a-1] Collecting with Query 1 for ${topicId}`);
-        service.executeStep1a_N_CollectQuery(topicId, 0);
+        console.log(`[Step 1a-1-a] Query 1 × Gov Group 1 for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 0, 'gov1');
         
-        // 次のステップを予約
         TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
-        console.log(`[Step 1a-1] Completed. Next step scheduled.`);
+        console.log(`[Step 1a-1-a] Completed. Next scheduled.`);
 
-      } else if (currentStatus === 'collecting_query_1') {
-        // Step 1a-2: Collect Query 1
-        outputsRepo.updateResearchStatus(topicId, 'collecting_query_2');
+      } else if (currentStatus === 'collecting_q1_gov1') {
+        // Step 1a-1-b: Query 0 × Gov Group 2
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q1_gov2');
         lock.releaseLock();
         
-        console.log(`[Step 1a-2] Collecting with Query 2 for ${topicId}`);
-        service.executeStep1a_N_CollectQuery(topicId, 1);
+        console.log(`[Step 1a-1-b] Query 1 × Gov Group 2 for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 0, 'gov2');
         
-        // 次のステップを予約
         TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
-        console.log(`[Step 1a-2] Completed. Next step scheduled.`);
+        console.log(`[Step 1a-1-b] Completed. Next scheduled.`);
 
-      } else if (currentStatus === 'collecting_query_2') {
-        // Step 1a-3: Collect Query 2
-        outputsRepo.updateResearchStatus(topicId, 'collecting_query_3');
+      } else if (currentStatus === 'collecting_q1_gov2') {
+        // Step 1a-1-c: Query 0 × Law
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q1_law');
         lock.releaseLock();
         
-        console.log(`[Step 1a-3] Collecting with Query 3 for ${topicId}`);
-        service.executeStep1a_N_CollectQuery(topicId, 2);
+        console.log(`[Step 1a-1-c] Query 1 × Law for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 0, 'law');
         
-        // クエリ収集完了 - Propertiesをクリーンアップ
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-1-c] Completed. Next scheduled.`);
+
+      } else if (currentStatus === 'collecting_q1_law') {
+        // Step 1a-1-d: Query 0 × Statistics
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q1_stat');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-1-d] Query 1 × Stat for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 0, 'stat');
+        
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-1-d] Completed. Next scheduled.`);
+
+      } else if (currentStatus === 'collecting_q1_stat') {
+        // Step 1a-2-a: Query 1 × Gov Group 1
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q2_gov1');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-2-a] Query 2 × Gov Group 1 for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 1, 'gov1');
+        
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-2-a] Completed. Next scheduled.`);
+
+      } else if (currentStatus === 'collecting_q2_gov1') {
+        // Step 1a-2-b: Query 1 × Gov Group 2
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q2_gov2');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-2-b] Query 2 × Gov Group 2 for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 1, 'gov2');
+        
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-2-b] Completed. Next scheduled.`);
+
+      } else if (currentStatus === 'collecting_q2_gov2') {
+        // Step 1a-2-c: Query 1 × Law
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q2_law');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-2-c] Query 2 × Law for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 1, 'law');
+        
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-2-c] Completed. Next scheduled.`);
+
+      } else if (currentStatus === 'collecting_q2_law') {
+        // Step 1a-2-d: Query 1 × Statistics
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q2_stat');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-2-d] Query 2 × Stat for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 1, 'stat');
+        
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-2-d] Completed. Next scheduled.`);
+
+      } else if (currentStatus === 'collecting_q2_stat') {
+        // Step 1a-3-a: Query 2 × Gov Group 1
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q3_gov1');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-3-a] Query 3 × Gov Group 1 for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 2, 'gov1');
+        
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-3-a] Completed. Next scheduled.`);
+
+      } else if (currentStatus === 'collecting_q3_gov1') {
+        // Step 1a-3-b: Query 2 × Gov Group 2
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q3_gov2');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-3-b] Query 3 × Gov Group 2 for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 2, 'gov2');
+        
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-3-b] Completed. Next scheduled.`);
+
+      } else if (currentStatus === 'collecting_q3_gov2') {
+        // Step 1a-3-c: Query 2 × Law
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q3_law');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-3-c] Query 3 × Law for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 2, 'law');
+        
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-3-c] Completed. Next scheduled.`);
+
+      } else if (currentStatus === 'collecting_q3_law') {
+        // Step 1a-3-d: Query 2 × Statistics (最後)
+        outputsRepo.updateResearchStatus(topicId, 'collecting_q3_stat');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-3-d] Query 3 × Stat (final) for ${topicId}`);
+        service.executeStep1a_N_X_CollectSiteGroup(topicId, 2, 'stat');
+        
+        // 全クエリ完了 - Propertiesクリーンアップ
         service.cleanupQueryProperties(topicId);
         
-        // 次のステップを予約
         TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
-        console.log(`[Step 1a-3] Completed. Queries cleaned up. Next step scheduled.`);
+        console.log(`[Step 1a-3-d] Completed. Queries cleaned up. Next scheduled.`);
 
-      } else if (currentStatus === 'collecting_query_3') {
+      } else if (currentStatus === 'collecting_q3_stat') {
         // Step 1b: Research Planning & Article Collection
         outputsRepo.updateResearchStatus(topicId, 'processing_1b');
         lock.releaseLock();
@@ -251,12 +347,61 @@ class DeepResearchService {
   }
 
   /**
-   * Step 1a-N: N番目のクエリで一次ソース収集
+   * Step 1a-N-X: N番目のクエリ × Xサイトグループで収集
    * @param {string} topicId 
    * @param {number} queryIndex
+   * @param {string} siteGroup 'gov1', 'gov2', 'law', 'stat'
+   */
+  executeStep1a_N_X_CollectSiteGroup(topicId, queryIndex, siteGroup) {
+    // Propertiesからクエリを取得
+    const props = PropertiesService.getScriptProperties();
+    const queriesJson = props.getProperty(`primary_queries_${topicId}`);
+    
+    if (!queriesJson) {
+      console.warn(`No queries found for ${topicId}. Skipping collection.`);
+      return;
+    }
+    
+    const queries = JSON.parse(queriesJson);
+    
+    if (queryIndex >= queries.length) {
+      console.log(`Query index ${queryIndex} out of range. Skipping.`);
+      return;
+    }
+    
+    const query = queries[queryIndex];
+    console.log(`  -> Collecting with query: "${query}" [${siteGroup}]`);
+    
+    // サイトグループごとに収集
+    let primarySources = [];
+    switch (siteGroup) {
+      case 'gov1':
+        primarySources = this.primarySourceService.collectGovernmentReleasesGroup1(query);
+        break;
+      case 'gov2':
+        primarySources = this.primarySourceService.collectGovernmentReleasesGroup2(query);
+        break;
+      case 'law':
+        primarySources = this.primarySourceService.collectLegalInfo(query);
+        break;
+      case 'stat':
+        primarySources = this.primarySourceService.collectStatistics(query);
+        break;
+      default:
+        console.warn(`Unknown site group: ${siteGroup}`);
+        return;
+    }
+    
+    // プロジェクトシートに保存
+    console.log(`  -> Saving ${primarySources.length} sources to sheet...`);
+    this.saveToProjectSheet(topicId, primarySources);
+  }
+
+  /**
+   * Step 1a-N: N番目のクエリで一次ソース収集（旧メソッド：後方互換性）
+   * @deprecated Use executeStep1a_N_X_CollectSiteGroup instead
    */
   executeStep1a_N_CollectQuery(topicId, queryIndex) {
-    // Propertiesからクエリを取得
     const props = PropertiesService.getScriptProperties();
     const queriesJson = props.getProperty(`primary_queries_${topicId}`);
     
@@ -275,10 +420,8 @@ class DeepResearchService {
     const query = queries[queryIndex];
     console.log(`  -> Collecting with query: "${query}"`);
     
-    // 一次ソース収集
     const primarySources = this.primarySourceService.collect(query);
     
-    // プロジェクトシートに保存
     console.log(`  -> Saving ${primarySources.length} primary sources to sheet...`);
     this.saveToProjectSheet(topicId, primarySources);
   }
