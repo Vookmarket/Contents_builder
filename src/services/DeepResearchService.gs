@@ -82,16 +82,38 @@ class DeepResearchService {
 
       // ステップ分岐
       if (currentStatus === 'pending') {
-        // Step 1: Collection
-        outputsRepo.updateResearchStatus(topicId, 'processing_collected'); // 先に更新してロック解放
+        // Step 1a: Primary Source Collection
+        outputsRepo.updateResearchStatus(topicId, 'processing_1a');
         lock.releaseLock();
         
-        console.log(`[Step 1] Starting Collection for ${topicId}`);
-        service.executeStep1_Collection(topicId);
+        console.log(`[Step 1a] Starting Primary Source Collection for ${topicId}`);
+        service.executeStep1a_PrimaryCollection(topicId);
         
         // 次のステップを予約
         TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
-        console.log(`[Step 1] Completed. Next step scheduled.`);
+        console.log(`[Step 1a] Completed. Next step scheduled.`);
+
+      } else if (currentStatus === 'processing_1a') {
+        // Step 1b: Research Planning & Article Collection
+        outputsRepo.updateResearchStatus(topicId, 'processing_1b');
+        lock.releaseLock();
+
+        console.log(`[Step 1b] Starting Research Planning & Article Collection for ${topicId}`);
+        service.executeStep1b_ArticleCollection(topicId);
+        
+        // 次のステップを予約
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1b] Completed. Next step scheduled.`);
+
+      } else if (currentStatus === 'processing_1b') {
+        // Step 2への移行（従来のprocessing_collectedと同等）
+        outputsRepo.updateResearchStatus(topicId, 'processing_collected');
+        lock.releaseLock();
+
+        console.log(`[Step 1 Complete] Moving to Step 2 for ${topicId}`);
+        
+        // 次のステップを予約
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
 
       } else if (currentStatus === 'processing_collected') {
         // Step 2: Evaluation
@@ -138,16 +160,16 @@ class DeepResearchService {
   }
 
   /**
-   * Step 1: 情報収集と保存
+   * Step 1a: 一次ソース収集
    * @param {string} topicId 
    */
-  executeStep1_Collection(topicId) {
+  executeStep1a_PrimaryCollection(topicId) {
     const intakeRepo = new IntakeQueueRepo();
     const item = intakeRepo.getAll().find(i => i.item_id === topicId);
     if (!item) throw new Error(`Item not found: ${topicId}`);
 
-    // 1. 一次ソースの収集
-    console.log('  -> Step 1a: Collecting primary sources...');
+    // 一次ソースの収集
+    console.log('  -> Collecting primary sources...');
     const primaryQueries = this.primarySourceService.generatePrimaryQueries(item);
     const primarySources = [];
     primaryQueries.forEach(query => {
@@ -156,11 +178,25 @@ class DeepResearchService {
       Utilities.sleep(1000);
     });
 
-    // 2. 調査計画生成
-    console.log('  -> Step 1b: Planning multi-perspective research...');
+    // 一時保存（プロジェクトシートに保存）
+    console.log(`  -> Saving ${primarySources.length} primary sources to sheet...`);
+    this.saveToProjectSheet(topicId, primarySources);
+  }
+
+  /**
+   * Step 1b: 調査計画生成と記事収集
+   * @param {string} topicId 
+   */
+  executeStep1b_ArticleCollection(topicId) {
+    const intakeRepo = new IntakeQueueRepo();
+    const item = intakeRepo.getAll().find(i => i.item_id === topicId);
+    if (!item) throw new Error(`Item not found: ${topicId}`);
+
+    // 調査計画生成
+    console.log('  -> Planning multi-perspective research...');
     const plan = this.planResearch(item);
     
-    // 3-6. 記事収集
+    // 記事収集
     const fetchAndTag = (queries, type, bias) => {
         const articles = this.fetchService.fetchByQuery(queries, 3);
         articles.forEach(a => {
@@ -179,15 +215,11 @@ class DeepResearchService {
     Utilities.sleep(1000);
     const additionalPrimary = fetchAndTag(plan.queries_primary, 'official', 'neutral');
 
-    const allArticles = [...primarySources, ...proArticles, ...conArticles, ...neutralArticles, ...additionalPrimary];
+    const allArticles = [...proArticles, ...conArticles, ...neutralArticles, ...additionalPrimary];
     
     // 保存 (reliability_score は空のまま)
     console.log(`  -> Saving ${allArticles.length} articles to sheet...`);
     this.saveToProjectSheet(topicId, allArticles);
-    
-    // Plan情報を一時保存（Step 3で使うためPropertiesServiceなどを使う手もあるが、今回は再生成か、シートから読むか）
-    // Timeline分析のためにPlanが必要だが、Step 3で再生成しても良いし、IntakeQueueのnotesなどに保存しても良い。
-    // 今回はシンプルに、Step 3でも planResearch を呼ぶ（冪等性が高いのでOK）
   }
 
   /**
