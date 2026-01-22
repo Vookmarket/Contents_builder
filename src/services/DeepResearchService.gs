@@ -146,14 +146,14 @@ class DeepResearchService {
     const item = intakeRepo.getAll().find(i => i.item_id === topicId);
     if (!item) throw new Error(`Item not found: ${topicId}`);
 
-    // 1. 一次ソースの収集（簡素化版: クエリ数削減済み）
+    // 1. 一次ソースの収集
     console.log('  -> Step 1a: Collecting primary sources...');
     const primaryQueries = this.primarySourceService.generatePrimaryQueries(item);
     const primarySources = [];
     primaryQueries.forEach(query => {
       const sources = this.primarySourceService.collect(query);
       primarySources.push(...sources);
-      Utilities.sleep(500); // 短縮
+      Utilities.sleep(1000);
     });
 
     // 2. 調査計画生成
@@ -172,11 +172,11 @@ class DeepResearchService {
     };
 
     const proArticles = fetchAndTag(plan.queries_pro, 'news', 'pro');
-    Utilities.sleep(500);
+    Utilities.sleep(1000);
     const conArticles = fetchAndTag(plan.queries_con, 'news', 'con');
-    Utilities.sleep(500);
+    Utilities.sleep(1000);
     const neutralArticles = fetchAndTag(plan.queries_neutral, 'news', 'neutral');
-    Utilities.sleep(500);
+    Utilities.sleep(1000);
     const additionalPrimary = fetchAndTag(plan.queries_primary, 'official', 'neutral');
 
     const allArticles = [...primarySources, ...proArticles, ...conArticles, ...neutralArticles, ...additionalPrimary];
