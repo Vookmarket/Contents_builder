@@ -8,7 +8,7 @@ class PrimarySourceService {
   }
 
   /**
-   * 一次ソースを包括的に収集
+   * 一次ソースを包括的に収集（簡素化版）
    * @param {string} query ベースとなる検索クエリ
    * @returns {Object[]} 収集した一次ソース記事
    */
@@ -17,14 +17,15 @@ class PrimarySourceService {
     
     const results = [];
     
-    // 1. 政府機関プレスリリース
+    // タイムアウト対策: 最も重要な政府機関のみに絞る
+    // 1. 政府機関プレスリリース（最重要サイトのみ）
     results.push(...this.collectGovernmentReleases(query));
     
-    // 2. 法令情報
+    // 2. 法令情報（件数削減）
     results.push(...this.collectLegalInfo(query));
     
-    // 3. 統計データ
-    results.push(...this.collectStatistics(query));
+    // 3. 統計データはスキップ（処理時間短縮のため）
+    // results.push(...this.collectStatistics(query));
     
     console.log(`Collected ${results.length} primary sources.`);
     return results;
@@ -37,17 +38,16 @@ class PrimarySourceService {
    */
   collectGovernmentReleases(query) {
     const results = [];
+    // タイムアウト対策: サイト数を削減
     const sites = [
-      'env.go.jp',        // 環境省
-      'maff.go.jp',       // 農林水産省
-      'mhlw.go.jp',       // 厚生労働省
-      'cas.go.jp'         // 内閣官房
+      'env.go.jp',        // 環境省（最重要）
+      'maff.go.jp'        // 農林水産省
     ];
 
     sites.forEach(site => {
       try {
         const siteQuery = `site:${site} プレスリリース ${query}`;
-        const articles = this.fetchService.fetchByQuery(siteQuery, 2); // 各サイト2件まで
+        const articles = this.fetchService.fetchByQuery(siteQuery, 1); // 各サイト1件まで
         
         articles.forEach(article => {
           article.source_type = 'official';
@@ -56,7 +56,7 @@ class PrimarySourceService {
         });
         
         results.push(...articles);
-        Utilities.sleep(1000); // レート制限対策
+        Utilities.sleep(500); // レート制限対策（短縮）
       } catch (e) {
         console.warn(`Failed to fetch from ${site}:`, e);
       }
@@ -74,9 +74,9 @@ class PrimarySourceService {
     const results = [];
     
     try {
-      // e-Gov法令検索
+      // e-Gov法令検索（件数削減）
       const legalQuery = `site:elaws.e-gov.go.jp ${query}`;
-      const articles = this.fetchService.fetchByQuery(legalQuery, 3);
+      const articles = this.fetchService.fetchByQuery(legalQuery, 1);
       
       articles.forEach(article => {
         article.source_type = 'law';
@@ -134,7 +134,7 @@ class PrimarySourceService {
   }
 
   /**
-   * 一次ソースの検索クエリを生成（Gemini使用）
+   * 一次ソースの検索クエリを生成（Gemini使用・簡素化版）
    * @param {Object} item 元記事
    * @returns {string[]} 一次ソース検索用クエリ
    */
@@ -142,17 +142,16 @@ class PrimarySourceService {
     const systemPrompt = `
 あなたは調査ジャーナリストです。
 ニュース記事のタイトルと概要から、この記事の信憑性を検証するために
-参照すべき「一次ソース」（政府発表、法令、統計データ）を探すための
-検索キーワードを3つ生成してください。
+参照すべき「一次ソース」（政府発表、法令）を探すための
+最も重要な検索キーワードを1つだけ生成してください。
 
 例:
 - 「環境省 動物愛護 統計 2024」
 - 「動物愛護管理法 改正」
-- 「殺処分 統計 e-stat」
 
 JSON Schema:
 {
-  "queries": string[]  // 3つの検索クエリ
+  "queries": string[]  // 1つの検索クエリ
 }
 `;
     const userPrompt = `Title: ${item.title}\nSnippet: ${item.snippet}`;
@@ -166,7 +165,7 @@ JSON Schema:
       return result.queries || [];
     } catch (e) {
       console.warn('Failed to generate primary queries, using fallback.');
-      return [`${item.title} 政府`, `${item.title} 法令`, `${item.title} 統計`];
+      return [`${item.title} 政府`]; // フォールバックも1つに
     }
   }
 }
