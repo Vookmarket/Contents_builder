@@ -63,7 +63,7 @@ class DeepResearchService {
 
   /**
    * 単一トピックに対するDeep Researchを実行（トリガーから呼ばれる・排他制御付き）
-   * ステップ実行パターン (Step 1 -> Step 2 -> Step 3)
+   * ステップ実行パターン (Step 1a-0 -> 1a-1 -> 1a-2 -> 1a-3 -> Step 1b -> Step 2 -> Step 3)
    * @param {string} topicId
    */
   static runForTopic(topicId) {
@@ -82,18 +82,57 @@ class DeepResearchService {
 
       // ステップ分岐
       if (currentStatus === 'pending') {
-        // Step 1a: Primary Source Collection
-        outputsRepo.updateResearchStatus(topicId, 'processing_1a');
+        // Step 1a-0: Query Generation
+        outputsRepo.updateResearchStatus(topicId, 'planning');
         lock.releaseLock();
         
-        console.log(`[Step 1a] Starting Primary Source Collection for ${topicId}`);
-        service.executeStep1a_PrimaryCollection(topicId);
+        console.log(`[Step 1a-0] Generating Primary Queries for ${topicId}`);
+        service.executeStep1a_0_QueryGeneration(topicId);
         
         // 次のステップを予約
         TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
-        console.log(`[Step 1a] Completed. Next step scheduled.`);
+        console.log(`[Step 1a-0] Completed. Next step scheduled.`);
 
-      } else if (currentStatus === 'processing_1a') {
+      } else if (currentStatus === 'planning') {
+        // Step 1a-1: Collect Query 0
+        outputsRepo.updateResearchStatus(topicId, 'collecting_query_1');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-1] Collecting with Query 1 for ${topicId}`);
+        service.executeStep1a_N_CollectQuery(topicId, 0);
+        
+        // 次のステップを予約
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-1] Completed. Next step scheduled.`);
+
+      } else if (currentStatus === 'collecting_query_1') {
+        // Step 1a-2: Collect Query 1
+        outputsRepo.updateResearchStatus(topicId, 'collecting_query_2');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-2] Collecting with Query 2 for ${topicId}`);
+        service.executeStep1a_N_CollectQuery(topicId, 1);
+        
+        // 次のステップを予約
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-2] Completed. Next step scheduled.`);
+
+      } else if (currentStatus === 'collecting_query_2') {
+        // Step 1a-3: Collect Query 2
+        outputsRepo.updateResearchStatus(topicId, 'collecting_query_3');
+        lock.releaseLock();
+        
+        console.log(`[Step 1a-3] Collecting with Query 3 for ${topicId}`);
+        service.executeStep1a_N_CollectQuery(topicId, 2);
+        
+        // クエリ収集完了 - Propertiesをクリーンアップ
+        service.cleanupQueryProperties(topicId);
+        
+        // 次のステップを予約
+        TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
+        console.log(`[Step 1a-3] Completed. Queries cleaned up. Next step scheduled.`);
+
+      } else if (currentStatus === 'collecting_query_3') {
         // Step 1b: Research Planning & Article Collection
         outputsRepo.updateResearchStatus(topicId, 'processing_1b');
         lock.releaseLock();
@@ -106,11 +145,11 @@ class DeepResearchService {
         console.log(`[Step 1b] Completed. Next step scheduled.`);
 
       } else if (currentStatus === 'processing_1b') {
-        // Step 2への移行（従来のprocessing_collectedと同等）
+        // Step 1b完了 -> Step 2への移行
         outputsRepo.updateResearchStatus(topicId, 'processing_collected');
         lock.releaseLock();
 
-        console.log(`[Step 1 Complete] Moving to Step 2 for ${topicId}`);
+        console.log(`[Step 1b Complete] Moving to Step 2 for ${topicId}`);
         
         // 次のステップを予約
         TriggerManager.createDelayedTriggerForTopic('runDeepResearchForTopic', 1, topicId);
@@ -129,21 +168,21 @@ class DeepResearchService {
 
       } else if (currentStatus === 'processing_evaluated') {
         // Step 3: Analysis
-        outputsRepo.updateResearchStatus(topicId, 'processing_analyzing'); // 仮ステータス
+        outputsRepo.updateResearchStatus(topicId, 'processing_analyzing');
         lock.releaseLock();
 
         console.log(`[Step 3] Starting Analysis for ${topicId}`);
         service.executeStep3_Analysis(topicId);
         
-        // 完了
+        // 完了 - 全てのPropertiesをクリーンアップ
         outputsRepo.updateResearchStatus(topicId, 'completed');
-        TriggerManager.cleanupTriggerData(topicId);
-        console.log(`[Step 3] Completed. All Done.`);
+        service.cleanupAllTopicData(topicId);
+        console.log(`[Step 3] Completed. All data cleaned up.`);
 
       } else if (currentStatus === 'completed') {
         console.log('Already completed.');
         lock.releaseLock();
-        TriggerManager.cleanupTriggerData(topicId);
+        service.cleanupAllTopicData(topicId);
       } else {
         console.log(`Unknown or processing status: ${currentStatus}`);
         lock.releaseLock();
@@ -151,34 +190,95 @@ class DeepResearchService {
       
     } catch (e) {
       console.error(`[Triggered] Error in deep research for ${topicId}:`, e);
-      // エラー時は failed にせず、再試行できるようにそのままにするか、あるいは failed にするか要検討
-      // 今回は failed にしてループを防ぐ
+      // エラー時もクリーンアップを実行
       outputsRepo.updateResearchStatus(topicId, 'failed');
-      TriggerManager.cleanupTriggerData(topicId);
+      service.cleanupAllTopicData(topicId);
       if (lock.hasLock()) lock.releaseLock();
     }
   }
 
   /**
-   * Step 1a: 一次ソース収集
+   * クエリ関連のPropertiesをクリーンアップ
+   * @param {string} topicId
+   */
+  cleanupQueryProperties(topicId) {
+    const props = PropertiesService.getScriptProperties();
+    props.deleteProperty(`primary_queries_${topicId}`);
+    console.log(`  -> Cleaned up query properties for ${topicId}`);
+  }
+
+  /**
+   * トピックに関連する全てのデータをクリーンアップ
+   * @param {string} topicId
+   */
+  cleanupAllTopicData(topicId) {
+    const props = PropertiesService.getScriptProperties();
+    
+    // 全ての関連Propertiesを削除
+    const keysToDelete = [
+      `primary_queries_${topicId}`,
+      `research_state_${topicId}`,
+      // 将来追加される可能性のあるキー
+    ];
+    
+    keysToDelete.forEach(key => {
+      props.deleteProperty(key);
+    });
+    
+    // トリガーデータもクリーンアップ
+    TriggerManager.cleanupTriggerData(topicId);
+    
+    console.log(`  -> Cleaned up all data for ${topicId}`);
+  }
+
+  /**
+   * Step 1a-0: クエリ生成のみ
    * @param {string} topicId 
    */
-  executeStep1a_PrimaryCollection(topicId) {
+  executeStep1a_0_QueryGeneration(topicId) {
     const intakeRepo = new IntakeQueueRepo();
     const item = intakeRepo.getAll().find(i => i.item_id === topicId);
     if (!item) throw new Error(`Item not found: ${topicId}`);
 
-    // 一次ソースの収集
-    console.log('  -> Collecting primary sources...');
+    console.log('  -> Generating primary source queries...');
     const primaryQueries = this.primarySourceService.generatePrimaryQueries(item);
-    const primarySources = [];
-    primaryQueries.forEach(query => {
-      const sources = this.primarySourceService.collect(query);
-      primarySources.push(...sources);
-      Utilities.sleep(1000);
-    });
+    
+    // Propertiesに保存
+    const props = PropertiesService.getScriptProperties();
+    props.setProperty(`primary_queries_${topicId}`, JSON.stringify(primaryQueries));
+    
+    console.log(`  -> Generated ${primaryQueries.length} queries and saved to properties.`);
+  }
 
-    // 一時保存（プロジェクトシートに保存）
+  /**
+   * Step 1a-N: N番目のクエリで一次ソース収集
+   * @param {string} topicId 
+   * @param {number} queryIndex
+   */
+  executeStep1a_N_CollectQuery(topicId, queryIndex) {
+    // Propertiesからクエリを取得
+    const props = PropertiesService.getScriptProperties();
+    const queriesJson = props.getProperty(`primary_queries_${topicId}`);
+    
+    if (!queriesJson) {
+      console.warn(`No queries found for ${topicId}. Skipping collection.`);
+      return;
+    }
+    
+    const queries = JSON.parse(queriesJson);
+    
+    if (queryIndex >= queries.length) {
+      console.log(`Query index ${queryIndex} out of range. Skipping.`);
+      return;
+    }
+    
+    const query = queries[queryIndex];
+    console.log(`  -> Collecting with query: "${query}"`);
+    
+    // 一次ソース収集
+    const primarySources = this.primarySourceService.collect(query);
+    
+    // プロジェクトシートに保存
     console.log(`  -> Saving ${primarySources.length} primary sources to sheet...`);
     this.saveToProjectSheet(topicId, primarySources);
   }

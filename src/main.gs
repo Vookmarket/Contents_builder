@@ -125,6 +125,66 @@ function cleanupOldTriggers() {
 }
 
 /**
+ * 古いプロジェクトシートをクリーンアップ
+ */
+function cleanupOldProjects() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    '古いプロジェクトシートの削除',
+    'completed/failed状態のプロジェクトシートをゴミ箱に移動します。\n（後で復元可能です）\n\nよろしいですか？',
+    ui.ButtonSet.YES_NO
+  );
+  
+  if (response == ui.Button.YES) {
+    const projectManager = new ProjectManager();
+    const count = projectManager.cleanupOldProjects(true);
+    ui.alert(`${count} 件のプロジェクトシートをゴミ箱に移動しました。`);
+  }
+}
+
+/**
+ * 失敗したプロジェクトのみクリーンアップ
+ */
+function cleanupFailedProjects() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    '失敗したプロジェクトの削除',
+    'failed状態のプロジェクトシートのみをゴミ箱に移動します。\n\nよろしいですか？',
+    ui.ButtonSet.YES_NO
+  );
+  
+  if (response == ui.Button.YES) {
+    const projectManager = new ProjectManager();
+    const count = projectManager.cleanupOldProjects(false);
+    ui.alert(`${count} 件のプロジェクトシートをゴミ箱に移動しました。`);
+  }
+}
+
+/**
+ * Script Propertiesをクリーンアップ（開発・デバッグ用）
+ */
+function cleanupAllProperties() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    'Properties 全削除（危険）',
+    '全てのScript Propertiesを削除します。\n実行中のトリガーがある場合、エラーが発生する可能性があります。\n\n本当によろしいですか？',
+    ui.ButtonSet.YES_NO
+  );
+  
+  if (response == ui.Button.YES) {
+    const props = PropertiesService.getScriptProperties();
+    const allProps = props.getProperties();
+    const keys = Object.keys(allProps);
+    
+    keys.forEach(key => {
+      props.deleteProperty(key);
+    });
+    
+    ui.alert(`${keys.length} 件のPropertiesを削除しました。`);
+  }
+}
+
+/**
  * メニュー作成 (Spreadsheet Open時)
  */
 function onOpen() {
@@ -141,6 +201,10 @@ function onOpen() {
     .addItem('5. ステークホルダー分析', 'runStakeholderAnalysisCycle')
     .addItem('6. コンテンツ生成 (Shorts)', 'runContentGenerationCycle')
     .addSeparator()
-    .addItem('🔧 トリガークリーンアップ', 'cleanupOldTriggers')
+    .addSubMenu(ui.createMenu('🔧 メンテナンス')
+      .addItem('トリガークリーンアップ', 'cleanupOldTriggers')
+      .addItem('古いプロジェクト削除', 'cleanupOldProjects')
+      .addItem('失敗プロジェクト削除', 'cleanupFailedProjects')
+      .addItem('全Properties削除 (危険)', 'cleanupAllProperties'))
     .addToUi();
 }
